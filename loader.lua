@@ -6,28 +6,52 @@ local LOBBY_PLACE_ID = 113704021665503
 
 print("[LOADER] Started")
 
+--//========================
 --// QUEUE SAFE
+--//========================
 local queue =
     (type(queue_on_teleport) == "function" and queue_on_teleport) or
     (syn and type(syn.queue_on_teleport) == "function" and syn.queue_on_teleport) or
     (type(queueonteleport) == "function" and queueonteleport)
 
+-- prevent infinite requeue spam
+getgenv()._LOADER_QUEUED = getgenv()._LOADER_QUEUED or false
+
+--//========================
 --// HELPERS
+--//========================
 local function fetch(path)
-    local ok,res = pcall(function()
-        return game:HttpGet(BASE..path)
-    end)
-    return ok and res or nil
+    local urls = {
+        BASE..path,
+        BASE:gsub("raw.githubusercontent.com","cdn.jsdelivr.net/gh"):gsub("/main/","@main/")..path
+    }
+
+    for _,url in ipairs(urls) do
+        local ok,res = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if ok and res then return res end
+    end
+
+    warn("[LOADER] Fetch failed:", path)
+    return nil
 end
 
-local function compile(code)
+local function exec(code)
     local fn = loadstring(code)
-    if not fn then return nil end
-    local ok,res = pcall(fn)
-    return ok and res or nil
+    if not fn then return false end
+
+    local ok,err = pcall(fn)
+    if not ok then
+        warn("[LOADER] Exec error:", err)
+    end
+
+    return ok
 end
 
---// GET PATH
+--//========================
+--// GET MACRO PATH
+--//========================
 local path = getgenv().SelectedMacroPath
 if not path then
     warn("[LOADER] No macro path")
@@ -36,30 +60,42 @@ end
 
 print("[LOADER] Macro:", path)
 
+--//========================
 --// LOAD MACRO
-local macro = compile(fetch(path))
+--//========================
+local macroCode = fetch(path)
+if not macroCode then return end
+
+local macro = loadstring(macroCode)()
 if not macro then
-    warn("[LOADER] Macro failed")
+    warn("[LOADER] Macro compile failed")
     return
 end
 
---// REQUEUE
-if queue then
+--//========================
+--// REQUEUE (ONLY ONCE)
+--//========================
+if queue and not getgenv()._LOADER_QUEUED then
+    getgenv()._LOADER_QUEUED = true
+
+    local q = string.format([[
+        getgenv().SelectedMacroPath = "%s"
+        loadstring(game:HttpGet("%s"))()
+    ]], path, BASE.."loader.lua")
+
     pcall(function()
-        queue(string.format([[
-            getgenv().SelectedMacroPath = "%s"
-            loadstring(game:HttpGet("%s"))()
-        ]], path, BASE.."loader.lua"))
+        queue(q)
+        print("[LOADER] Queued for teleport")
     end)
 end
 
 print("[LOADER] PlaceId:", game.PlaceId)
 
 --//========================
---// LOBBY
+--// LOBBY LOGIC
 --//========================
 if game.PlaceId == LOBBY_PLACE_ID then
-    print("[LOADER] Lobby logic")
+    print("[LOADER] In lobby")
 
     local RS = game:GetService("ReplicatedStorage")
     local LP = game:GetService("Players").LocalPlayer
@@ -68,7 +104,9 @@ if game.PlaceId == LOBBY_PLACE_ID then
         return LP.Character or LP.CharacterAdded:Wait()
     end
 
-    while true do
+    local startTime = tick()
+
+    while tick() - startTime < 60 do -- timeout (60s)
         local lobby = workspace:FindFirstChild("NewLobby")
 
         if lobby and lobby:FindFirstChild("Elevators") then
@@ -81,51 +119,59 @@ if game.PlaceId == LOBBY_PLACE_ID then
                 if title and title.Text == "0/5" then
                     local char = getChar()
 
-                    -- SAVE ORIGINAL POSITION
                     local old = char:GetPivot()
-
                     local target = screen.CFrame * CFrame.new(0,3,0)
 
+                    -- move in
                     for i = 1,6 do
                         char:PivotTo(target)
                         task.wait()
                     end
 
-                    -- FIRE
                     RS.Events.StartElevator:FireServer(e.Name)
-                    print("[LOADER] Fired elevator:", e.Name)
+                    print("[LOADER] Entered elevator:", e.Name)
 
-                    -- 🔥 RETURN IMMEDIATELY
+                    -- return back instantly
                     char:PivotTo(old)
-                    print("[LOADER] Returned to original position")
 
-                    task.wait(5)
+                    -- wait for teleport
+                    task.wait(8)
+                    break
                 end
             end
         end
 
         task.wait(1)
     end
+
+    print("[LOADER] Lobby loop ended")
+    return -- IMPORTANT: stop here in lobby
 end
 
 --//========================
---// GAME
+--// GAME LOGIC
 --//========================
 repeat task.wait() until game:IsLoaded()
 
 print("[LOADER] Loading engine")
 
-local engine = compile(fetch("engine.lua"))
-if not engine then
-    warn("[LOADER] Engine failed")
+local engineCode = fetch("engine.lua")
+if not engineCode then
+    warn("[LOADER] Engine fetch failed")
     return
 end
 
-task.wait(1)
+local ok = exec(engineCode)
+if not ok then
+    warn("[LOADER] Engine execution failed")
+    return
+end
 
-if getgenv().MacroEngine then
+task.wait(0.5)
+
+if getgenv().MacroEngine and getgenv().MacroEngine.run then
     print("[LOADER] Running macro")
     getgenv().MacroEngine.run(macro)
 else
-    warn("[LOADER] No MacroEngine")
+    warn("[LOADER] MacroEngine missing")
 end
