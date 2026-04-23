@@ -2,7 +2,7 @@
   "macros": [
     {
       "name": "TOILET HQ",
-      "file": "macros/ToiletHQ.lua",
+      "path": "macros/ToiletHQ.lua",
       "author": "1vnboy",
       "image": "rbxassetid://96569749590804",
       "description": "Beats under 10+ minutes"
