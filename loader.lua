@@ -92,7 +92,7 @@ end
 print("[LOADER] PlaceId:", game.PlaceId)
 
 --//========================
---// LOBBY LOGIC
+--// LOBBY LOGIC (FILTERED)
 --//========================
 if game.PlaceId == LOBBY_PLACE_ID then
     print("[LOADER] In lobby")
@@ -104,13 +104,29 @@ if game.PlaceId == LOBBY_PLACE_ID then
         return LP.Character or LP.CharacterAdded:Wait()
     end
 
+    -- build lookup table from macro settings
+    local function toLookup(list)
+        local t = {}
+        for _,v in ipairs(list or {}) do
+            t[v] = true
+        end
+        return t
+    end
+
+    local validElevators = toLookup(macro.Settings and macro.Settings.Elevators)
+
     local startTime = tick()
 
-    while tick() - startTime < 60 do -- timeout (60s)
+    while tick() - startTime < 60 do
         local lobby = workspace:FindFirstChild("NewLobby")
 
         if lobby and lobby:FindFirstChild("Elevators") then
             for _,e in ipairs(lobby.Elevators:GetChildren()) do
+
+                -- ✅ FILTER HERE
+                if next(validElevators) and not validElevators[e.Name] then
+                    continue
+                end
 
                 local screen = e:FindFirstChild("Screen")
                 local gui = screen and screen:FindFirstChild("StatusGui")
@@ -131,10 +147,9 @@ if game.PlaceId == LOBBY_PLACE_ID then
                     RS.Events.StartElevator:FireServer(e.Name)
                     print("[LOADER] Entered elevator:", e.Name)
 
-                    -- return back instantly
+                    -- return instantly
                     char:PivotTo(old)
 
-                    -- wait for teleport
                     task.wait(8)
                     break
                 end
@@ -145,7 +160,7 @@ if game.PlaceId == LOBBY_PLACE_ID then
     end
 
     print("[LOADER] Lobby loop ended")
-    return -- IMPORTANT: stop here in lobby
+    return
 end
 
 --//========================
