@@ -2,7 +2,7 @@
   "macros": [
     {
       "name": "TOILET HQ",
-      "file": "macros/farm.lua",
+      "file": "macros/ToiletHQ.lua",
       "author": "1vnboy",
       "description": "USW | MECH | UTC"
     }
