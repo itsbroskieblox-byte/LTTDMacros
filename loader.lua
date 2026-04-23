@@ -5,7 +5,7 @@ local BASE = "https://raw.githubusercontent.com/itsbroskieblox-byte/LTTDMacros/m
 local LOBBY_PLACE_ID = 113704021665503
 
 --//========================
---// QUEUE (FIXED)
+--// QUEUE
 --//========================
 local queue =
     queue_on_teleport or
@@ -13,26 +13,14 @@ local queue =
     (fluxus and fluxus.queue_on_teleport) or
     queueonteleport
 
-getgenv().AlreadyQueued = getgenv().AlreadyQueued or false
-
--- always queue itself ONCE per session
-if queue and not getgenv().AlreadyQueued then
-    getgenv().AlreadyQueued = true
-    queue('loadstring(game:HttpGet("'..BASE..'loader.lua"))()')
-end
-
 --//========================
 --// HELPERS
 --//========================
 local function fetch(path)
-    local ok,res = pcall(function()
-        return game:HttpGet(BASE..path)
-    end)
-    return ok and res or nil
+    return game:HttpGet(BASE..path)
 end
 
 local function compile(code)
-    if not code then return nil end
     local fn = loadstring(code)
     if not fn then return nil end
     local ok,res = pcall(fn)
@@ -40,14 +28,18 @@ local function compile(code)
 end
 
 --//========================
---// LOAD MACRO
+--// GET MACRO PATH (FIXED)
 --//========================
 local path = getgenv().SelectedMacroPath
+
 if not path then
-    warn("No macro path set")
+    warn("No macro path found (lost on teleport)")
     return
 end
 
+--//========================
+--// LOAD MACRO
+--//========================
 local macro = compile(fetch(path))
 if not macro then
     warn("Failed to load macro")
@@ -55,13 +47,24 @@ if not macro then
 end
 
 --//========================
---// LOBBY SYSTEM
+--// RE-QUEUE WITH PATH
+--//========================
+if queue then
+    local scriptToQueue = string.format([[
+        getgenv().SelectedMacroPath = "%s"
+        loadstring(game:HttpGet("%s"))()
+    ]], path, BASE.."loader.lua")
+
+    queue(scriptToQueue)
+end
+
+--//========================
+--// LOBBY
 --//========================
 if game.PlaceId == LOBBY_PLACE_ID then
 
     local RS = game:GetService("ReplicatedStorage")
-    local Players = game:GetService("Players")
-    local LP = Players.LocalPlayer
+    local LP = game:GetService("Players").LocalPlayer
 
     local function getChar()
         return LP.Character or LP.CharacterAdded:Wait()
@@ -93,20 +96,12 @@ if game.PlaceId == LOBBY_PLACE_ID then
                     local char = getChar()
                     local target = screen.CFrame * CFrame.new(0,3,0)
 
-                    -- move player in
                     for i = 1,6 do
                         char:PivotTo(target)
                         task.wait()
                     end
 
-                    -- start elevator (teleport)
                     RS.Events.StartElevator:FireServer(e.Name)
-
-                    -- ensure queue persists BEFORE teleport
-                    if queue then
-                        queue('loadstring(game:HttpGet("'..BASE..'loader.lua"))()')
-                    end
-
                     task.wait(6)
                 end
             end
@@ -117,25 +112,16 @@ if game.PlaceId == LOBBY_PLACE_ID then
 end
 
 --//========================
---// GAME SYSTEM
---//========================
-
--- wait for game to fully load
+--// GAME
+--========================
 repeat task.wait() until game:IsLoaded()
 
--- load engine
 local engine = compile(fetch("engine.lua"))
-
 if not engine then
-    warn("Failed to load engine")
+    warn("Engine failed")
     return
 end
 
--- wait for engine to register
 task.wait(1)
 
-if getgenv().MacroEngine and getgenv().MacroEngine.run then
-    getgenv().MacroEngine.run(macro)
-else
-    warn("MacroEngine not found")
-end
+if
