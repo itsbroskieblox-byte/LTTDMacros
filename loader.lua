@@ -14,7 +14,6 @@ local queue =
     (syn and type(syn.queue_on_teleport) == "function" and syn.queue_on_teleport) or
     (type(queueonteleport) == "function" and queueonteleport)
 
--- prevent infinite requeue spam
 getgenv()._LOADER_QUEUED = getgenv()._LOADER_QUEUED or false
 
 --//========================
@@ -49,8 +48,12 @@ local function exec(code)
     return ok
 end
 
+local function normalize(str)
+    return tostring(str):gsub("%s+", ""):lower()
+end
+
 --//========================
---// GET MACRO PATH
+--// GET MACRO
 --//========================
 local path = getgenv().SelectedMacroPath
 if not path then
@@ -60,9 +63,6 @@ end
 
 print("[LOADER] Macro:", path)
 
---//========================
---// LOAD MACRO
---//========================
 local macroCode = fetch(path)
 if not macroCode then return end
 
@@ -73,7 +73,19 @@ if not macro then
 end
 
 --//========================
---// REQUEUE (ONLY ONCE)
+--// BUILD ELEVATOR PRIORITY
+--//========================
+local priority = {}
+for i,v in ipairs((macro.Settings and macro.Settings.Elevators) or {}) do
+    priority[normalize(v)] = i
+end
+
+local function getPriority(name)
+    return priority[normalize(name)] or math.huge
+end
+
+--//========================
+--// REQUEUE (ONCE)
 --//========================
 if queue and not getgenv()._LOADER_QUEUED then
     getgenv()._LOADER_QUEUED = true
@@ -92,7 +104,7 @@ end
 print("[LOADER] PlaceId:", game.PlaceId)
 
 --//========================
---// LOBBY LOGIC (FILTERED)
+--// LOBBY LOGIC
 --//========================
 if game.PlaceId == LOBBY_PLACE_ID then
     print("[LOADER] In lobby")
@@ -104,55 +116,61 @@ if game.PlaceId == LOBBY_PLACE_ID then
         return LP.Character or LP.CharacterAdded:Wait()
     end
 
-    -- build lookup table from macro settings
-    local function toLookup(list)
-        local t = {}
-        for _,v in ipairs(list or {}) do
-            t[v] = true
-        end
-        return t
-    end
+    -- wait for lobby properly
+    local lobby = workspace:WaitForChild("NewLobby", 10)
+    local elevatorsFolder = lobby and lobby:WaitForChild("Elevators", 10)
 
-    local validElevators = toLookup(macro.Settings and macro.Settings.Elevators)
+    if not elevatorsFolder then
+        warn("[LOADER] Elevators not found")
+        return
+    end
 
     local startTime = tick()
 
     while tick() - startTime < 60 do
-        local lobby = workspace:FindFirstChild("NewLobby")
+        local elevators = elevatorsFolder:GetChildren()
 
-        if lobby and lobby:FindFirstChild("Elevators") then
-            for _,e in ipairs(lobby.Elevators:GetChildren()) do
+        -- SORT (priority first, fallback numeric)
+        table.sort(elevators, function(a, b)
+            local pa = getPriority(a.Name)
+            local pb = getPriority(b.Name)
 
-                -- ✅ FILTER HERE
-                if next(validElevators) and not validElevators[e.Name] then
-                    continue
+            if pa ~= pb then
+                return pa < pb
+            end
+
+            local na = tonumber(string.match(a.Name, "%d+")) or 0
+            local nb = tonumber(string.match(b.Name, "%d+")) or 0
+            return na < nb
+        end)
+
+        for _,e in ipairs(elevators) do
+            print("[DEBUG] Checking:", e.Name)
+
+            local screen = e:FindFirstChild("Screen") or e:FindFirstChildWhichIsA("BasePart")
+            local gui = screen and (screen:FindFirstChildWhichIsA("SurfaceGui") or screen:FindFirstChildWhichIsA("BillboardGui"))
+            local title = gui and gui:FindFirstChild("Title")
+
+            if title and string.find(title.Text, "0/5") then
+                print("[LOADER] Found empty:", e.Name)
+
+                local char = getChar()
+                local old = char:GetPivot()
+                local target = screen.CFrame * CFrame.new(0,3,0)
+
+                -- move reliably
+                for i = 1,10 do
+                    char:PivotTo(target)
+                    task.wait(0.1)
                 end
 
-                local screen = e:FindFirstChild("Screen")
-                local gui = screen and screen:FindFirstChild("StatusGui")
-                local title = gui and gui:FindFirstChild("Title")
+                RS.Events.StartElevator:FireServer(e.Name)
+                print("[LOADER] Attempted:", e.Name)
 
-                if title and title.Text == "0/5" then
-                    local char = getChar()
+                char:PivotTo(old)
 
-                    local old = char:GetPivot()
-                    local target = screen.CFrame * CFrame.new(0,3,0)
-
-                    -- move in
-                    for i = 1,6 do
-                        char:PivotTo(target)
-                        task.wait()
-                    end
-
-                    RS.Events.StartElevator:FireServer(e.Name)
-                    print("[LOADER] Entered elevator:", e.Name)
-
-                    -- return instantly
-                    char:PivotTo(old)
-
-                    task.wait(8)
-                    break
-                end
+                task.wait(3)
+                break
             end
         end
 
