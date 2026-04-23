@@ -1,5 +1,5 @@
 --//========================
---// ENGINE (FIXED)
+--// ENGINE (REWRITE - STABLE)
 --//========================
 getgenv().MacroEngine = {}
 
@@ -8,43 +8,47 @@ local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 
--- WAIT GAME READY
 repeat task.wait() until game:IsLoaded()
 
--- SAFE GETTERS
+--//========================
+-- SAFE WAIT
+--//========================
 local function safeWait(parent, name)
+    if not parent then return nil end
+
     local obj = parent:FindFirstChild(name)
     if obj then return obj end
 
-    local ok
-    ok, obj = pcall(function()
+    local ok, res = pcall(function()
         return parent:WaitForChild(name, 10)
     end)
 
-    return ok and obj or nil
+    return ok and res or nil
 end
 
+--//========================
+-- GET OBJECTS
+--//========================
 local Functions = safeWait(RS, "Functions")
-if not Functions then
-    warn("[ENGINE] Functions missing")
-    return
-end
+local Towers = safeWait(workspace, "Towers")
+local Gold = safeWait(LP, "Gold")
+
+local Info = safeWait(workspace, "Info")
+local Wave = Info and safeWait(Info, "Wave")
+
+if not Functions then warn("[ENGINE] Missing Functions") return end
 
 local SpawnTower = safeWait(Functions, "SpawnTower")
 local RequestTower = safeWait(Functions, "RequestTower")
 local SellTower = safeWait(Functions, "SellTower")
 
-local Towers = safeWait(workspace, "Towers")
-local Gold = safeWait(LP, "Gold")
-local Wave = safeWait(workspace:FindFirstChild("Info") or workspace, "Wave")
-
 if not (SpawnTower and RequestTower and SellTower and Towers and Gold) then
-    warn("[ENGINE] Missing critical objects")
+    warn("[ENGINE] Missing critical remotes")
     return
 end
 
 --//========================
---// HELPERS
+-- HELPERS
 --//========================
 local function waitGold(amount)
     while Gold.Value < amount do
@@ -65,37 +69,53 @@ local function getPrev(base, level)
 end
 
 --//========================
---// ACTIONS
+-- ACTIONS
 --//========================
 local function place(name, cf)
-    print("[ENGINE] Placing:", name)
-    RequestTower:InvokeServer(name)
-    SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
+    print("[ENGINE] Place:", name)
+
+    local ok1 = pcall(function()
+        RequestTower:InvokeServer(name)
+    end)
+
+    local ok2 = pcall(function()
+        SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
+    end)
+
+    if not ok1 or not ok2 then
+        warn("[ENGINE] Failed to place:", name)
+    end
 end
 
 local function upgrade(name, level)
-    print("[ENGINE] Upgrading:", name, level)
+    print("[ENGINE] Upgrade:", name, level)
 
     local prev = getPrev(name, level)
     local tower = Towers:FindFirstChild(prev)
 
     if not tower then
-        warn("[ENGINE] Upgrade failed, tower not found:", prev)
+        warn("[ENGINE] Upgrade failed, missing:", prev)
         return
     end
 
-    SpawnTower:InvokeServer(getName(name, level), tower:GetPivot(), tower)
+    pcall(function()
+        SpawnTower:InvokeServer(getName(name, level), tower:GetPivot(), tower)
+    end)
 end
 
 local function sell(name, level)
-    print("[ENGINE] Selling:", name)
+    print("[ENGINE] Sell:", name)
 
     local target = getName(name, level or 1)
 
     for _ = 1, 10 do
         local t = Towers:FindFirstChild(target)
         if not t then break end
-        SellTower:InvokeServer(t)
+
+        pcall(function()
+            SellTower:InvokeServer(t)
+        end)
+
         task.wait()
     end
 end
@@ -113,11 +133,31 @@ local function fullPlace(costs, tower, cf)
 end
 
 --//========================
---// STEP EXECUTOR
+-- CONDITION HANDLER
+--//========================
+local function handleCondition(cond)
+    if not cond then return end
+
+    if cond.type == "wave" then
+        print("[ENGINE] Waiting for wave:", cond.value)
+
+        repeat task.wait()
+        until getWave() >= cond.value
+
+        print("[ENGINE] Wave reached:", getWave())
+    end
+end
+
+--//========================
+-- STEP EXECUTOR
 --//========================
 local AutoSkip = true
 
 local function runStep(step, file)
+    print("[ENGINE] Step:", step.action, step.tower or "", step.level or "")
+
+    handleCondition(step.condition)
+
     local positions = file.Positions or {}
     local prices = file.Prices or {}
 
@@ -126,25 +166,36 @@ local function runStep(step, file)
 
     if step.action == "fullPlace" then
         if not pos or not cost then
-            warn("[ENGINE] Missing data for fullPlace:", step.tower)
+            warn("[ENGINE] Missing data:", step.tower)
             return
         end
 
         local cf = pos[step.id or 1]
-        if not cf then return end
+        if not cf then
+            warn("[ENGINE] Missing CFrame:", step.tower)
+            return
+        end
 
         for _ = 1, (step.count or 1) do
             fullPlace(cost, step.tower, cf)
         end
 
     elseif step.action == "place" then
-        if not pos or not cost then return end
+        if not pos or not cost then
+            warn("[ENGINE] Missing data:", step.tower)
+            return
+        end
+
         local cf = pos[step.id or 1]
         waitGold(cost[1])
         place(step.tower, cf)
 
     elseif step.action == "upgrade" then
-        if not cost then return end
+        if not cost then
+            warn("[ENGINE] Missing price:", step.tower)
+            return
+        end
+
         waitGold(cost[step.level])
         upgrade(step.tower, step.level)
 
@@ -167,7 +218,7 @@ local function runStep(step, file)
 end
 
 --//========================
---// RUN
+-- RUN
 --//========================
 getgenv().MacroEngine.run = function(file)
     if not file or not file.Steps then
@@ -176,11 +227,10 @@ getgenv().MacroEngine.run = function(file)
     end
 
     print("[ENGINE] Running macro...")
+    print("[ENGINE] Steps:", #file.Steps)
 
     task.spawn(function()
         for i, step in ipairs(file.Steps) do
-            print("[STEP]", i, step.action, step.tower or "")
-
             local ok, err = pcall(function()
                 runStep(step, file)
             end)
