@@ -1,34 +1,28 @@
 --//========================
---// ENGINE (REWRITE - STABLE)
+-- ENGINE (FINAL - TRACKED)
 --//========================
 getgenv().MacroEngine = {}
 
--- SERVICES
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 
 repeat task.wait() until game:IsLoaded()
 
---//========================
 -- SAFE WAIT
---//========================
 local function safeWait(parent, name)
     if not parent then return nil end
-
     local obj = parent:FindFirstChild(name)
     if obj then return obj end
 
-    local ok, res = pcall(function()
+    local ok,res = pcall(function()
         return parent:WaitForChild(name, 10)
     end)
 
     return ok and res or nil
 end
 
---//========================
--- GET OBJECTS
---//========================
+-- OBJECTS
 local Functions = safeWait(RS, "Functions")
 local Towers = safeWait(workspace, "Towers")
 local Gold = safeWait(LP, "Gold")
@@ -43,7 +37,7 @@ local RequestTower = safeWait(Functions, "RequestTower")
 local SellTower = safeWait(Functions, "SellTower")
 
 if not (SpawnTower and RequestTower and SellTower and Towers and Gold) then
-    warn("[ENGINE] Missing critical remotes")
+    warn("[ENGINE] Missing remotes")
     return
 end
 
@@ -57,15 +51,39 @@ local function waitGold(amount)
 end
 
 local function getWave()
-    return (Wave and Wave.Value) or 0
+    if Wave then return Wave.Value end
+    local alt = workspace:FindFirstChild("Wave")
+    return alt and alt.Value or 0
 end
 
-local function getName(base, level)
-    return (level == 1) and base or (base .. level)
+--//========================
+-- TOWER TRACKING
+--//========================
+local placed = {} -- [towerName] = {instances}
+
+local function trackTower(name)
+    placed[name] = placed[name] or {}
+
+    -- wait for new tower instance
+    for _ = 1,20 do
+        for _,t in ipairs(Towers:GetChildren()) do
+            if t.Name:find(name) then
+                if not table.find(placed[name], t) then
+                    table.insert(placed[name], t)
+                    return t
+                end
+            end
+        end
+        task.wait(0.2)
+    end
+
+    return nil
 end
 
-local function getPrev(base, level)
-    return (level <= 2) and base or (base .. (level - 1))
+local function getTracked(name)
+    local list = placed[name]
+    if not list or #list == 0 then return nil end
+    return list[#list] -- latest
 end
 
 --//========================
@@ -74,145 +92,134 @@ end
 local function place(name, cf)
     print("[ENGINE] Place:", name)
 
-    local ok1 = pcall(function()
+    pcall(function()
         RequestTower:InvokeServer(name)
     end)
 
-    local ok2 = pcall(function()
+    task.wait(0.1)
+
+    pcall(function()
         SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
     end)
 
-    if not ok1 or not ok2 then
-        warn("[ENGINE] Failed to place:", name)
-    end
+    return trackTower(name)
 end
 
-local function upgrade(name, level)
-    print("[ENGINE] Upgrade:", name, level)
+local function upgrade(name)
+    print("[ENGINE] Upgrade:", name)
 
-    local prev = getPrev(name, level)
-    local tower = Towers:FindFirstChild(prev)
-
+    local tower = getTracked(name)
     if not tower then
-        warn("[ENGINE] Upgrade failed, missing:", prev)
+        warn("[ENGINE] No tracked tower:", name)
         return
     end
 
     pcall(function()
-        SpawnTower:InvokeServer(getName(name, level), tower:GetPivot(), tower)
+        SpawnTower:InvokeServer(name, tower:GetPivot(), tower)
     end)
 end
 
-local function sell(name, level)
+local function sell(name)
     print("[ENGINE] Sell:", name)
 
-    local target = getName(name, level or 1)
+    local list = placed[name]
+    if not list then return end
 
-    for _ = 1, 10 do
-        local t = Towers:FindFirstChild(target)
-        if not t then break end
-
+    for _,t in ipairs(list) do
         pcall(function()
             SellTower:InvokeServer(t)
         end)
-
         task.wait()
     end
+
+    placed[name] = {}
 end
 
-local function fullPlace(costs, tower, cf)
+local function fullPlace(costs, name, cf)
+    local tower = nil
+
     for level, price in ipairs(costs) do
         waitGold(price)
 
         if level == 1 then
-            place(tower, cf)
+            tower = place(name, cf)
         else
-            upgrade(tower, level)
+            upgrade(name)
         end
     end
+
+    return tower
 end
 
 --//========================
--- CONDITION HANDLER
+-- CONDITION
 --//========================
 local function handleCondition(cond)
     if not cond then return end
 
     if cond.type == "wave" then
-        print("[ENGINE] Waiting for wave:", cond.value)
+        print("[ENGINE] Wait wave:", cond.value)
 
         repeat task.wait()
         until getWave() >= cond.value
-
-        print("[ENGINE] Wave reached:", getWave())
     end
 end
 
 --//========================
--- STEP EXECUTOR
+-- AUTOSKIP
 --//========================
 local AutoSkip = true
 
+task.spawn(function()
+    while true do
+        if AutoSkip then
+            local skip = RS:FindFirstChild("Events") and RS.Events:FindFirstChild("SkipWave")
+            if skip then
+                pcall(function()
+                    skip:FireServer()
+                end)
+            end
+        end
+        task.wait(1)
+    end
+end)
+
+--//========================
+-- STEP EXECUTOR
+--//========================
 local function runStep(step, file)
-    print("[ENGINE] Step:", step.action, step.tower or "", step.level or "")
+    print("[ENGINE] Step:", step.action, step.tower or "")
 
     handleCondition(step.condition)
 
-    local positions = file.Positions or {}
-    local prices = file.Prices or {}
-
-    local pos = positions[step.tower]
-    local cost = prices[step.tower]
+    local pos = file.Positions and file.Positions[step.tower]
+    local cost = file.Prices and file.Prices[step.tower]
 
     if step.action == "fullPlace" then
-        if not pos or not cost then
-            warn("[ENGINE] Missing data:", step.tower)
-            return
-        end
-
+        if not pos or not cost then return end
         local cf = pos[step.id or 1]
-        if not cf then
-            warn("[ENGINE] Missing CFrame:", step.tower)
-            return
-        end
 
-        for _ = 1, (step.count or 1) do
+        for _ = 1,(step.count or 1) do
             fullPlace(cost, step.tower, cf)
         end
 
     elseif step.action == "place" then
-        if not pos or not cost then
-            warn("[ENGINE] Missing data:", step.tower)
-            return
-        end
-
-        local cf = pos[step.id or 1]
+        if not pos or not cost then return end
         waitGold(cost[1])
-        place(step.tower, cf)
+        place(step.tower, pos[step.id or 1])
 
     elseif step.action == "upgrade" then
-        if not cost then
-            warn("[ENGINE] Missing price:", step.tower)
-            return
-        end
-
+        if not cost then return end
         waitGold(cost[step.level])
-        upgrade(step.tower, step.level)
+        upgrade(step.tower)
 
     elseif step.action == "sell" then
-        for _ = 1, (step.count or 1) do
-            sell(step.tower, step.level)
-        end
+        sell(step.tower)
 
     elseif step.action == "set" then
         if step.target == "Skip" then
             AutoSkip = step.value
-            print("[ENGINE] AutoSkip =", AutoSkip)
-        end
-
-    elseif step.action == "repeat" then
-        for _ = 1, (step.count or 1) do
-            runStep(step.data, file)
+            print("[ENGINE] AutoSkip:", AutoSkip)
         end
     end
 end
@@ -221,26 +228,22 @@ end
 -- RUN
 --//========================
 getgenv().MacroEngine.run = function(file)
-    if not file or not file.Steps then
-        warn("[ENGINE] Invalid macro")
-        return
-    end
+    if not file or not file.Steps then return end
 
-    print("[ENGINE] Running macro...")
-    print("[ENGINE] Steps:", #file.Steps)
+    print("[ENGINE] Running...")
 
     task.spawn(function()
-        for i, step in ipairs(file.Steps) do
-            local ok, err = pcall(function()
+        for _,step in ipairs(file.Steps) do
+            local ok,err = pcall(function()
                 runStep(step, file)
             end)
 
             if not ok then
-                warn("[ENGINE] Step error:", err)
+                warn("[ENGINE] Error:", err)
                 break
             end
         end
 
-        print("[ENGINE] Finished macro")
+        print("[ENGINE] Done")
     end)
 end
