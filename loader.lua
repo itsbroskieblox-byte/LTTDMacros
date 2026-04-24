@@ -83,13 +83,8 @@ if game.PlaceId == LOBBY_PLACE_ID then
         local char = LP.Character or LP.CharacterAdded:Wait()
         return char:WaitForChild("HumanoidRootPart")
     end
-
-    local valid = {
-        Elevator13 = true,
-        Elevator14 = true,
-        Elevator15 = true,
-        Elevator16 = true
-    }
+    
+    local valid = macro.Settings.Elevators
 
     local function hold(cf, duration)
         local root = getRoot()
