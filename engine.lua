@@ -135,11 +135,12 @@ end
 --//========================
 -- AUTOSKIP LOOP
 --//========================
-GameGui.SkipButton.Skip:GetPropertyChangedSignal("Visible"):Connect(function()
-   if GameGui.SkipButton.Skip.Visible and getgenv().AutoSkip then
+while true do
+    if getgenv().AutoSkip then
       Events.VoteSkip:FireServer()
    end
-end)
+    task.wait(0.1)
+end
 
 --//========================
 -- END SCREEN LOOP
