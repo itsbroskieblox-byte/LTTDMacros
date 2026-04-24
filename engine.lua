@@ -30,7 +30,7 @@ getgenv().MacroRunsDone = getgenv().MacroRunsDone or 0
 -- NAME LOGIC
 --//========================
 local function getModel(base, level)
-    if level <= 2 then
+    if level == 1 then
         return base
     else
         return base .. (level - 1)
@@ -38,7 +38,7 @@ local function getModel(base, level)
 end
 
 local function getPrevious(base, level)
-    if level <= 2 then
+    if level <= 1 then
         return base
     else
         return base .. (level - 2)
