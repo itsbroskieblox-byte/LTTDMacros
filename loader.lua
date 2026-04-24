@@ -1,5 +1,5 @@
 --//========================
--- LOADER (CLEAN + SAFE)
+-- LOADER (NO DELAY, 0.3s HOLD)
 --//========================
 
 local BASE = "https://raw.githubusercontent.com/itsbroskieblox-byte/LTTDMacros/main/"
@@ -24,7 +24,6 @@ local function safeQueue()
         warn("[LOADER] No queue function")
         return
     end
-
     if getgenv()._LOADER_QUEUED then return end
     getgenv()._LOADER_QUEUED = true
 
@@ -47,12 +46,6 @@ local function safeQueue()
     end)
 end
 
--- FAST WAIT (you referenced this)
-local function fastWait()
-    task.wait()
-end
-
--- FETCH
 local function fetch(p)
     return game:HttpGet(BASE..p)
 end
@@ -76,7 +69,7 @@ if not ok or not macro then
 end
 
 --========================
--- LOBBY LOGIC (YOUR VERSION, FIXED ONLY WHERE NEEDED)
+-- LOBBY LOGIC (NO GUI, NO DELAY)
 --========================
 if game.PlaceId == LOBBY_PLACE_ID then
     local Events = RS:WaitForChild("Events")
@@ -93,6 +86,16 @@ if game.PlaceId == LOBBY_PLACE_ID then
         Elevator16 = true
     }
 
+    -- HOLD FUNCTION (ONLY DELAY = 0.3s)
+    local function hold(cf, duration)
+        local root = getRoot()
+        local t0 = tick()
+        while tick() - t0 < duration do
+            root.CFrame = cf
+            task.wait()
+        end
+    end
+
     while true do
         local lobby = workspace:FindFirstChild("NewLobby")
 
@@ -100,41 +103,37 @@ if game.PlaceId == LOBBY_PLACE_ID then
             for _, e in pairs(lobby.Elevators:GetChildren()) do
                 if not valid[e.Name] then continue end
 
-                local root = getRoot()
-                local originCFrame = root.CFrame
-
                 local screen = e:FindFirstChild("Screen")
                 if not screen or not screen:IsA("BasePart") then continue end
 
-                local gui = screen:FindFirstChild("StatusGui")
-                if not gui then continue end
+                local root = getRoot()
+                local targetCF = CFrame.new(screen.Position + Vector3.new(0, 3, 0))
 
-                local title = gui:FindFirstChild("Title")
-                if not title then continue end
+                print("[LOADER] Attempt:", e.Name)
 
-                if title.Text == "0/5" then
-                    print("[LOADER] Entering:", e.Name)
-
-                    root.CFrame = CFrame.new(screen.Position + Vector3.new(0, 3, 0))
-
-                    local remote = Events:FindFirstChild("StartElevator")
-                    if remote then
-                        remote:FireServer(e.Name)
-                        print("[LOADER] Fired:", e.Name)
-                    else
-                        warn("[LOADER] StartElevator missing")
-                    end
-
-                    root.CFrame = originCFrame
-
-                    safeQueue()
-
-                    task.wait(5)
+                -- FORCE INSIDE (no delay loop, just spam set)
+                for i = 1, 10 do
+                    root.CFrame = targetCF
                 end
+
+                -- FIRE REMOTE MULTIPLE TIMES (no wait)
+                local remote = Events:FindFirstChild("StartElevator")
+                if remote then
+                    remote:FireServer(e.Name)
+                    remote:FireServer(e.Name)
+                    remote:FireServer(e.Name)
+                else
+                    warn("[LOADER] StartElevator missing")
+                end
+
+                -- ONLY DELAY: HOLD 0.3s
+                hold(targetCF, 0.3)
+
+                safeQueue()
             end
         end
 
-        fastWait()
+        task.wait() -- minimal yield (not a real delay loop)
     end
 
     return
