@@ -1,5 +1,5 @@
 --//========================
--- LOADER (NO DELAY, 0.3s HOLD)
+-- LOADER (FIXED EXECUTION FLOW)
 --//========================
 
 local BASE = "https://raw.githubusercontent.com/itsbroskieblox-byte/LTTDMacros/main/"
@@ -17,7 +17,7 @@ local queue =
     (syn and syn.queue_on_teleport) or
     queueonteleport
 
-getgenv()._LOADER_QUEUED = false
+getgenv()._LOADER_QUEUED = getgenv()._LOADER_QUEUED or false
 
 local function safeQueue()
     if not queue then
@@ -26,6 +26,8 @@ local function safeQueue()
     end
     if getgenv()._LOADER_QUEUED then return end
     getgenv()._LOADER_QUEUED = true
+
+    print("[LOADER] Queueing self")
 
     local src = string.format([[
         getgenv().SelectedMacroPath = "%s"
@@ -68,8 +70,11 @@ if not ok or not macro then
     return
 end
 
+-- ALWAYS QUEUE EARLY (CRITICAL FIX)
+safeQueue()
+
 --========================
--- LOBBY LOGIC (NO GUI, NO DELAY)
+-- LOBBY LOGIC
 --========================
 if game.PlaceId == LOBBY_PLACE_ID then
     local Events = RS:WaitForChild("Events")
@@ -86,7 +91,6 @@ if game.PlaceId == LOBBY_PLACE_ID then
         Elevator16 = true
     }
 
-    -- HOLD FUNCTION (ONLY DELAY = 0.3s)
     local function hold(cf, duration)
         local root = getRoot()
         local t0 = tick()
@@ -96,56 +100,56 @@ if game.PlaceId == LOBBY_PLACE_ID then
         end
     end
 
-    while true do
-        local lobby = workspace:FindFirstChild("NewLobby")
+    task.spawn(function()
+        while true do
+            local lobby = workspace:FindFirstChild("NewLobby")
 
-        if lobby and lobby:FindFirstChild("Elevators") then
-            for _, e in pairs(lobby.Elevators:GetChildren()) do
-                if not valid[e.Name] then continue end
+            if lobby and lobby:FindFirstChild("Elevators") then
+                for _, e in pairs(lobby.Elevators:GetChildren()) do
+                    if not valid[e.Name] then continue end
 
-                local screen = e:FindFirstChild("Screen")
-                if not screen or not screen:IsA("BasePart") then continue end
+                    local screen = e:FindFirstChild("Screen")
+                    if not screen then continue end
 
-                local root = getRoot()
-                local targetCF = CFrame.new(screen.Position + Vector3.new(0, 3, 0))
+                    local root = getRoot()
+                    local targetCF = CFrame.new(screen.Position + Vector3.new(0,3,0))
 
-                print("[LOADER] Attempt:", e.Name)
+                    print("[LOADER] Attempt:", e.Name)
 
-                -- FORCE INSIDE (no delay loop, just spam set)
-                for i = 1, 10 do
-                    root.CFrame = targetCF
+                    for i = 1, 10 do
+                        root.CFrame = targetCF
+                    end
+
+                    local remote = Events:FindFirstChild("StartElevator")
+                    if remote then
+                        remote:FireServer(e.Name)
+                        remote:FireServer(e.Name)
+                        remote:FireServer(e.Name)
+                    end
+
+                    hold(targetCF, 0.3)
                 end
-
-                -- FIRE REMOTE MULTIPLE TIMES (no wait)
-                local remote = Events:FindFirstChild("StartElevator")
-                if remote then
-                    remote:FireServer(e.Name)
-                    remote:FireServer(e.Name)
-                    remote:FireServer(e.Name)
-                else
-                    warn("[LOADER] StartElevator missing")
-                end
-
-                -- ONLY DELAY: HOLD 0.3s
-                hold(targetCF, 0.3)
-
-                safeQueue()
             end
-        end
 
-        task.wait() -- minimal yield (not a real delay loop)
-    end
+            task.wait()
+        end
+    end)
 
     return
 end
 
 --========================
--- GAME LOGIC
+-- GAME LOGIC (ENGINE RUN GUARANTEED)
 --========================
 repeat task.wait() until game:IsLoaded()
+
+print("[LOADER] Loading engine")
 
 loadstring(fetch("engine.lua"))()
 
 if getgenv().MacroEngine then
+    print("[LOADER] Running macro")
     getgenv().MacroEngine.run(macro)
+else
+    warn("[LOADER] Engine failed to load")
 end
