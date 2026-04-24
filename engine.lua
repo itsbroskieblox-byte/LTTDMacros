@@ -56,25 +56,11 @@ end
 -- NAME LOGIC
 --//========================
 local function getModel(base, level)
-    if level <= 2 then
-        print("[GetModel]", base)
-        return base
-    else
-        local name = base .. (level - 1)
-        print("[GetModel]", name)
-        return name
-    end
+    return (level == 1) and base or (base .. level)
 end
 
 local function getPrevious(base, level)
-    if level <= 2 then
-        print("[GetPrevious]", base)
-        return base
-    else
-        local name = base .. (level - 2)
-        print("[GetPrevious]", name)
-        return name
-    end
+    return (level <= 2) and base or (base .. (level - 1))
 end
 
 --//========================
