@@ -135,17 +135,10 @@ end
 --//========================
 -- AUTOSKIP LOOP
 --//========================
-task.spawn(function()
-    while true do
-        task.wait(0.3)
-
-        if getgenv().AutoSkip then
-            pcall(function()
-                RS.Events.VoteSkip:FireServer()
-                print("[AutoSkip] Fired")
-            end)
-        end
-    end
+GameGui.SkipButton.Skip:GetPropertyChangedSignal("Visible"):Connect(function()
+   if GameGui.SkipButton.Skip.Visible and getgenv().AutoSkip then
+      Events.VoteSkip:FireServer()
+   end
 end)
 
 --//========================
