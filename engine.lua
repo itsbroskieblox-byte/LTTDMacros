@@ -128,7 +128,7 @@ local function runStep(step, file)
             if id == 1 then
                 place(step.tower, pos[step.id or 1])
             else
-                upgrade(step.tower, step.level)
+                upgrade(step.tower, id)
             end
         end
     elseif step.action == "place" then
