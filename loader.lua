@@ -131,6 +131,8 @@ if game.PlaceId == LOBBY_PLACE_ID then
             else
                 warn("[LOADER] StartElevator missing")
             end
+            
+            task.wait(0.1)
 
             -- HOLD POSITION briefly
             for i = 1, 8 do
