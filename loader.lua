@@ -1,8 +1,10 @@
 --//========================
--- LOADER (FINAL)
+-- LOADER (FINAL STABLE)
 --//========================
 local BASE = "https://raw.githubusercontent.com/itsbroskieblox-byte/LTTDMacros/main/"
 local LOBBY_PLACE_ID = 113704021665503
+
+print("[LOADER] Start")
 
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -41,12 +43,22 @@ local function fetch(p)
 end
 
 local path = getgenv().SelectedMacroPath
-if not path then return end
+if not path then
+    warn("[LOADER] No macro path")
+    return
+end
+
+print("[LOADER] Path:", path)
 
 local macro = loadstring(fetch(path))()
+if not macro then
+    warn("[LOADER] Invalid macro")
+    return
+end
+
 queueSelf(path)
 
--- LOBBY PRIORITY
+-- LOBBY
 if game.PlaceId == LOBBY_PLACE_ID then
     local lobby = workspace:WaitForChild("NewLobby")
     local elevators = lobby:WaitForChild("Elevators")
@@ -69,8 +81,8 @@ if game.PlaceId == LOBBY_PLACE_ID then
 
     for _,e in ipairs(list) do
         local screen = e:FindFirstChild("Screen")
-        local title = screen and screen:FindFirstChildWhichIsA("SurfaceGui")
-        title = title and title:FindFirstChild("Title")
+        local gui = screen and screen:FindFirstChildWhichIsA("SurfaceGui")
+        local title = gui and gui:FindFirstChild("Title")
 
         if title and title.Text:find("0/") then
             root.CFrame = CFrame.new(screen.Position + Vector3.new(0,3,0))
@@ -82,6 +94,7 @@ if game.PlaceId == LOBBY_PLACE_ID then
     return
 end
 
+-- GAME
 repeat task.wait() until game:IsLoaded()
 
 loadstring(fetch("engine.lua"))()
