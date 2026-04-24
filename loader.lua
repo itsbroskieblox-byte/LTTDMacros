@@ -1,5 +1,5 @@
 --//========================
--- LOADER (CLEAN REWRITE)
+-- LOADER (REWRITE - HARD TP)
 --//========================
 
 local BASE = "https://raw.githubusercontent.com/itsbroskieblox-byte/LTTDMacros/main/"
@@ -35,7 +35,6 @@ local function queueSelf(path)
 
     pcall(function()
         queue(src)
-        print("[LOADER] Queued")
     end)
 end
 
@@ -59,7 +58,6 @@ local function fetch(path)
         end
     end
 
-    warn("[LOADER] Fetch failed:", path)
     return nil
 end
 
@@ -68,30 +66,15 @@ end
 --//========================
 local function exec(code)
     local fn = loadstring(code)
-    if not fn then
-        warn("[LOADER] Compile failed")
-        return false
-    end
-
-    local ok, err = pcall(fn)
-    if not ok then
-        warn("[LOADER] Runtime error:", err)
-        return false
-    end
-
-    return true
+    if not fn then return false end
+    return pcall(fn)
 end
 
 --//========================
--- MACRO LOAD
+-- MACRO
 --//========================
 local macroPath = getgenv().SelectedMacroPath
-if not macroPath then
-    warn("[LOADER] No macro path")
-    return
-end
-
-print("[LOADER] Macro:", macroPath)
+if not macroPath then return end
 
 local macroCode = fetch(macroPath)
 if not macroCode then return end
@@ -102,11 +85,7 @@ do
         return loadstring(macroCode)()
     end)
 
-    if not ok or not res then
-        warn("[LOADER] Macro failed")
-        return
-    end
-
+    if not ok or not res then return end
     macro = res
 end
 
@@ -116,18 +95,13 @@ queueSelf(macroPath)
 -- LOBBY
 --//========================
 if game.PlaceId == LOBBY_PLACE_ID then
-    print("[LOADER] Lobby")
-
-    local lobby = workspace:WaitForChild("NewLobby", 10)
-    local elevators = lobby and lobby:WaitForChild("Elevators", 10)
-
-    if not elevators then
-        warn("[LOADER] No elevators")
-        return
-    end
+    local lobby = workspace:FindFirstChild("NewLobby")
+    local elevators = lobby and lobby:FindFirstChild("Elevators")
+    if not elevators then return end
 
     local char = LP.Character or LP.CharacterAdded:Wait()
-    local root = char:WaitForChild("HumanoidRootPart")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
 
     for _, e in ipairs(elevators:GetChildren()) do
         local screen = e:FindFirstChild("Screen")
@@ -135,19 +109,16 @@ if game.PlaceId == LOBBY_PLACE_ID then
         local title = gui and gui:FindFirstChild("Title")
 
         if screen and title and title.Text:find("0/") then
-            print("[LOADER] Using elevator:", e.Name)
 
-            -- use Screen as center
-            root.CFrame = screen.CFrame + Vector3.new(0, 3, 0)
+            -- HARD TELEPORT (no delay, no physics reliance)
+            char:MoveTo(screen.Position + Vector3.new(0, 3, 0))
+            root.CFrame = CFrame.new(screen.Position + Vector3.new(0, 3, 0))
 
             local events = RS:FindFirstChild("Events")
             local remote = events and events:FindFirstChild("StartElevator")
 
             if remote then
                 remote:FireServer(e.Name)
-                print("[LOADER] Fired:", e.Name)
-            else
-                warn("[LOADER] Remote missing")
             end
 
             break
@@ -162,18 +133,11 @@ end
 --//========================
 repeat task.wait() until game:IsLoaded()
 
-print("[LOADER] In-game")
-
 local engineCode = fetch("engine.lua")
 if not engineCode then return end
 
 if not exec(engineCode) then return end
 
 if getgenv().MacroEngine and macro then
-    print("[LOADER] Running macro")
-    pcall(function()
-        getgenv().MacroEngine.run(macro)
-    end)
-else
-    warn("[LOADER] MacroEngine missing")
+    getgenv().MacroEngine.run(macro)
 end
