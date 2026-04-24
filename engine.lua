@@ -121,8 +121,17 @@ local function runStep(step, file)
 
     local pos = file.Positions and file.Positions[step.tower]
     local cost = file.Prices and file.Prices[step.tower]
-
-    if step.action == "place" then
+    
+    if step.action == "fullPlace" then
+        for id = 1, #cost do
+            waitGold(cost[id])
+            if id == 1 then
+                place(step.tower, pos[step.id or 1])
+            else
+                upgrade(step.tower, step.level)
+            end
+        end
+    elseif step.action == "place" then
         waitGold(cost[1])
         place(step.tower, pos[step.id or 1])
 
