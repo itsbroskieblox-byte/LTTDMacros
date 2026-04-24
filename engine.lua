@@ -8,6 +8,7 @@ local BASE = "https://raw.githubusercontent.com/itsbroskieblox-byte/LTTDMacros/m
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
+local PlayerGui = LP:WaitForChild("PlayerGui")
 
 repeat task.wait() until game:IsLoaded()
 
