@@ -1,11 +1,11 @@
 --//========================
--- LOADER (FULL REWRITE)
+-- LOADER (CLEAN REWRITE)
 --//========================
 
 local BASE = "https://raw.githubusercontent.com/itsbroskieblox-byte/LTTDMacros/main/"
 local LOBBY_PLACE_ID = 113704021665503
 
-print("[LOADER] Booting...")
+print("[LOADER] Booting")
 
 --//========================
 -- SERVICES
@@ -15,7 +15,7 @@ local RS = game:GetService("ReplicatedStorage")
 local LP = Players.LocalPlayer
 
 --//========================
--- QUEUE SYSTEM
+-- QUEUE
 --//========================
 local queue =
     queue_on_teleport or
@@ -28,19 +28,19 @@ local function queueSelf(path)
     if not queue or getgenv()._LOADER_QUEUED then return end
     getgenv()._LOADER_QUEUED = true
 
-    local scriptToQueue = string.format([[
+    local src = string.format([[
         getgenv().SelectedMacroPath = "%s"
         loadstring(game:HttpGet("%s"))()
-    ]], path, BASE.."loader.lua")
+    ]], path, BASE .. "loader.lua")
 
     pcall(function()
-        queue(scriptToQueue)
-        print("[LOADER] Queued on teleport")
+        queue(src)
+        print("[LOADER] Queued")
     end)
 end
 
 --//========================
--- FETCH SYSTEM
+-- FETCH
 --//========================
 local function fetch(path)
     local urls = {
@@ -59,12 +59,12 @@ local function fetch(path)
         end
     end
 
-    warn("[LOADER] Failed to fetch:", path)
+    warn("[LOADER] Fetch failed:", path)
     return nil
 end
 
 --//========================
--- EXECUTOR
+-- EXEC
 --//========================
 local function exec(code)
     local fn = loadstring(code)
@@ -83,47 +83,46 @@ local function exec(code)
 end
 
 --//========================
--- GET MACRO
+-- MACRO LOAD
 --//========================
 local macroPath = getgenv().SelectedMacroPath
 if not macroPath then
-    warn("[LOADER] No macro selected")
+    warn("[LOADER] No macro path")
     return
 end
 
-print("[LOADER] Loading macro:", macroPath)
+print("[LOADER] Macro:", macroPath)
 
 local macroCode = fetch(macroPath)
 if not macroCode then return end
 
-local macro = nil
+local macro
 do
-    local ok, result = pcall(function()
+    local ok, res = pcall(function()
         return loadstring(macroCode)()
     end)
 
-    if ok then
-        macro = result
-    else
-        warn("[LOADER] Macro load failed:", result)
+    if not ok or not res then
+        warn("[LOADER] Macro failed")
         return
     end
+
+    macro = res
 end
 
--- queue script for teleport reuse
 queueSelf(macroPath)
 
 --//========================
--- LOBBY HANDLER
+-- LOBBY
 --//========================
 if game.PlaceId == LOBBY_PLACE_ID then
-    print("[LOADER] In lobby")
+    print("[LOADER] Lobby")
 
     local lobby = workspace:WaitForChild("NewLobby", 10)
     local elevators = lobby and lobby:WaitForChild("Elevators", 10)
 
     if not elevators then
-        warn("[LOADER] Elevators not found")
+        warn("[LOADER] No elevators")
         return
     end
 
@@ -135,36 +134,20 @@ if game.PlaceId == LOBBY_PLACE_ID then
         local gui = screen and screen:FindFirstChildWhichIsA("SurfaceGui")
         local title = gui and gui:FindFirstChild("Title")
 
-        if title and title.Text:find("0/") then
-            print("[LOADER] Found empty elevator:", e.Name)
+        if screen and title and title.Text:find("0/") then
+            print("[LOADER] Using elevator:", e.Name)
 
-            -- find valid teleport part
-            local tpPart =
-                e:FindFirstChild("TouchPart") or
-                e:FindFirstChild("Hitbox") or
-                e:FindFirstChild("JoinPart") or
-                e:FindFirstChildWhichIsA("BasePart")
+            -- use Screen as center
+            root.CFrame = screen.CFrame + Vector3.new(0, 3, 0)
 
-            if tpPart then
-                root.CFrame = tpPart.CFrame + Vector3.new(0, 3, 0)
-                print("[LOADER] Teleported into elevator")
-
-                task.wait(0.4)
-            else
-                warn("[LOADER] No teleport part found")
-            end
-
-            -- fire remote
             local events = RS:FindFirstChild("Events")
             local remote = events and events:FindFirstChild("StartElevator")
 
             if remote then
-                pcall(function()
-                    remote:FireServer(e.Name)
-                end)
-                print("[LOADER] Fired elevator remote")
+                remote:FireServer(e.Name)
+                print("[LOADER] Fired:", e.Name)
             else
-                warn("[LOADER] Remote not found")
+                warn("[LOADER] Remote missing")
             end
 
             break
@@ -175,17 +158,16 @@ if game.PlaceId == LOBBY_PLACE_ID then
 end
 
 --//========================
--- GAME HANDLER
+-- GAME
 --//========================
 repeat task.wait() until game:IsLoaded()
-print("[LOADER] In game")
+
+print("[LOADER] In-game")
 
 local engineCode = fetch("engine.lua")
 if not engineCode then return end
 
 if not exec(engineCode) then return end
-
-task.wait(0.3)
 
 if getgenv().MacroEngine and macro then
     print("[LOADER] Running macro")
