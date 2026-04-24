@@ -9,6 +9,10 @@ local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 
+local GameGui = PlayerGui:WaitForChild("GameGui")
+local TextInfo = GameGui:WaitForChild("GameController"):WaitForChild("TextInfo")
+local Folder = GameGui:WaitForChild("Texts"):WaitForChild("Folder")
+
 repeat task.wait() until game:IsLoaded()
 
 -- OBJECTS
@@ -26,6 +30,43 @@ getgenv().MacroRepeatInfinite = getgenv().MacroRepeatInfinite or false
 getgenv().MacroRepeatCount = getgenv().MacroRepeatCount or 1
 getgenv().MacroRunsDone = getgenv().MacroRunsDone or 0
 
+-- Notifier
+local function notify(msg, color)
+    color = color or Color3.fromRGB(255, 255, 255)
+
+    local t = TextInfo:Clone()
+    t.Parent = Folder
+    t.Text = msg
+    
+    t.Font = Enum.Font.FredokaOne
+    t.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2.5
+    stroke.Color = color
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+    stroke.Parent = t
+
+    task.spawn(function()
+        for i = 0, 1, 0.1 do
+            t.TextTransparency = 1 - i
+            stroke.Transparency = 1 - i
+            task.wait(0.02)
+        end
+    end)
+    
+    task.delay(3, function()
+        if t then
+            for i = 0, 1, 0.1 do
+                t.TextTransparency = i
+                stroke.Transparency = i
+                task.wait(0.02)
+            end
+            t:Destroy()
+        end
+    end)
+end
+
 --//========================
 -- NAME LOGIC
 --//========================
@@ -38,10 +79,10 @@ local function getModel(base, level)
 end
 
 local function getPrevious(base, level)
-    if level <= 1 then
+    if level <= 2 then
         return base
     else
-        return base .. (level - 2)
+        return base .. (level - 1)
     end
 end
 
@@ -76,7 +117,7 @@ local function upgrade(name, level)
 end
 
 local function sell(name, level)
-    local target = getModel(name, level or 1)
+    local target = (name..level)
 
     for _,t in ipairs(Towers:GetChildren()) do
         if t.Name == target then
@@ -159,7 +200,8 @@ end)
 --//========================
 getgenv().MacroEngine.run = function(file)
     if not file or not file.Steps then return end
-
+    
+    notify("[CORE] Script Started", Color3.fromRGB(0,255,0))
     print("[ENGINE] Running:", #file.Steps)
 
     for _,step in ipairs(file.Steps) do
