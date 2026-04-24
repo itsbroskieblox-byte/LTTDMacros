@@ -127,7 +127,8 @@ if game.PlaceId == LOBBY_PLACE_ID then
                         remote:FireServer(e.Name)
                     end
 
-                    hold(targetCF, 0.3)
+                    hold(targetCF, 0.1)
+                    task.wait(10)
                 end
             end
 
