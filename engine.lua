@@ -101,7 +101,7 @@ local function upgrade(name, level)
 end
 
 local function sell(name, level)
-    local target = getModel(name, level or 1)
+    local target = (name..level)
 
     print("[Sell] Looking for:", target)
 
@@ -123,12 +123,14 @@ local function runStep(step, file)
     local cost = file.Prices and file.Prices[step.tower]
     
     if step.action == "fullPlace" then
-        for id = 1, #cost do
-            waitGold(cost[id])
-            if id == 1 then
-                place(step.tower, pos[step.id or 1])
-            else
-                upgrade(step.tower, id)
+        for id = 1, step.count do
+            for index = 1, #cost do
+                waitGold(cost[index])
+                if index == 1 then
+                    place(step.tower, pos[step.id or 1])
+                else
+                    upgrade(step.tower, id)
+                end
             end
         end
     elseif step.action == "place" then
