@@ -115,11 +115,11 @@ if game.PlaceId == LOBBY_PLACE_ID then
 
             local targetCF = screen.CFrame + Vector3.new(0, 3, 0)
 
+            local oldCF = char:GetPivot()
             -- HARD TELEPORT (REPEATED)
             for i = 1, 8 do
                 char:PivotTo(targetCF)
                 root.CFrame = targetCF
-                task.wait(0.1)
             end
 
             -- FIRE REMOTE
@@ -133,7 +133,10 @@ if game.PlaceId == LOBBY_PLACE_ID then
             end
 
             -- HOLD POSITION briefly
-            task.wait(2)
+            for i = 1, 8 do
+                char:PivotTo(oldCF)
+                root.CFrame = oldCF
+            end
 
             break
         end
