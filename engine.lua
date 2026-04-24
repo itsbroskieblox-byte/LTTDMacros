@@ -1,5 +1,5 @@
 --//========================
--- ENGINE (FIXED + PRINTS)
+-- ENGINE (FINAL FIXED + AUTOSKIP PRINT)
 --//========================
 getgenv().MacroEngine = {}
 
@@ -16,7 +16,6 @@ repeat task.wait() until game:IsLoaded()
 local Functions = RS:WaitForChild("Functions")
 local Towers = workspace:WaitForChild("Towers")
 local Gold = LP:WaitForChild("Gold")
-
 local Events = RS:WaitForChild("Events")
 
 local SpawnTower = Functions:WaitForChild("SpawnTower")
@@ -33,44 +32,28 @@ getgenv().MacroRepeatInfinite = getgenv().MacroRepeatInfinite or false
 getgenv().MacroRepeatCount = getgenv().MacroRepeatCount or 1
 getgenv().MacroRunsDone = getgenv().MacroRunsDone or 0
 
+--//========================
+-- NOTIFY
+--//========================
 local function notify(msg, color)
-    color = color or Color3.fromRGB(255, 255, 255)
+    color = color or Color3.fromRGB(255,255,255)
 
     local t = TextInfo:Clone()
     t.Parent = Folder
     t.Text = msg
-    
-    t.Font = Enum.Font.FredokaOne
-    t.TextColor3 = Color3.fromRGB(255, 255, 255)
-    
+
     local stroke = Instance.new("UIStroke")
-    stroke.Thickness = 2.5
+    stroke.Thickness = 2
     stroke.Color = color
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
     stroke.Parent = t
 
-    task.spawn(function()
-        for i = 0, 1, 0.1 do
-            t.TextTransparency = 1 - i
-            stroke.Transparency = 1 - i
-            task.wait(0.02)
-        end
-    end)
-    
-    task.delay(3, function()
-        if t then
-            for i = 0, 1, 0.1 do
-                t.TextTransparency = i
-                stroke.Transparency = i
-                task.wait(0.02)
-            end
-            t:Destroy()
-        end
+    task.delay(3,function()
+        if t then t:Destroy() end
     end)
 end
 
 --//========================
--- NAME LOGIC (CORRECT)
+-- NAME LOGIC
 --//========================
 local function getModel(base, level)
     if level <= 2 then
@@ -85,11 +68,11 @@ end
 
 local function getPrevious(base, level)
     if level <= 2 then
-        print("[GetPrevious] ", base)
+        print("[GetPrevious]", base)
         return base
     else
         local name = base .. (level - 2)
-        print("[GetPrevious] ", name)
+        print("[GetPrevious]", name)
         return name
     end
 end
@@ -108,41 +91,38 @@ end
 --//========================
 local function place(name, cf)
     print("[Place] Request:", name)
-
     RequestTower:InvokeServer(name)
     task.wait()
-
     SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
-
     print("[Place] Placed:", name)
 end
 
 local function upgrade(name, level)
-    local prevName = getPrevious(name, level)
-    local newName = getModel(name, level)
+    local prev = getPrevious(name, level)
+    local new = getModel(name, level)
 
-    print("[Upgrade] Trying:", prevName, "->", newName)
+    print("[Upgrade] Trying:", prev, "->", new)
 
-    for _, t in ipairs(Towers:GetChildren()) do
-        if t.Name == prevName then
-            SpawnTower:InvokeServer(newName, t:GetPivot(), t)
-            print("[Upgrade] Success:", newName)
+    for _,t in ipairs(Towers:GetChildren()) do
+        if t.Name == prev then
+            SpawnTower:InvokeServer(new, t:GetPivot(), t)
+            print("[Upgrade] Success:", new)
             return
         end
     end
 
-    warn("[Upgrade] Failed, missing:", prevName)
+    warn("[Upgrade] Failed:", prev)
 end
 
 local function sell(name, level)
-    local targetName = getModel(name, level or 1)
+    local target = getModel(name, level or 1)
 
-    print("[Sell] Looking for:", targetName)
+    print("[Sell] Looking for:", target)
 
-    for _, t in ipairs(Towers:GetChildren()) do
-        if t.Name == targetName then
+    for _,t in ipairs(Towers:GetChildren()) do
+        if t.Name == target then
             SellTower:InvokeServer(t)
-            print("[Sell] Sold:", targetName)
+            print("[Sell] Sold:", target)
         end
     end
 end
@@ -176,21 +156,23 @@ local function runStep(step, file)
 end
 
 --//========================
--- AUTOSKIP LOOP
+-- AUTOSKIP LOOP (FIXED THREAD)
 --//========================
-while true do
-    if getgenv().AutoSkip then
-      Events.VoteSkip:FireServer()
-   end
-    task.wait(0.1)
-end
+task.spawn(function()
+    while true do
+        if getgenv().AutoSkip then
+            pcall(function()
+                Events.VoteSkip:FireServer()
+            end)
+        end
+        task.wait(0.2)
+    end
+end)
 
 --//========================
 -- END SCREEN LOOP
 --//========================
 task.spawn(function()
-    local GameGui = LP.PlayerGui:WaitForChild("GameGui")
-
     while true do
         task.wait(0.5)
 
@@ -203,10 +185,9 @@ task.spawn(function()
 
             local inf = getgenv().MacroRepeatInfinite
             local max = tonumber(getgenv().MacroRepeatCount) or 1
-
             local replay = inf or (getgenv().MacroRunsDone < max)
 
-            RS.Events.ExitGame:FireServer()
+            Events.ExitGame:FireServer()
 
             if replay and queue_on_teleport then
                 print("[Replay] Queueing next run")
@@ -225,6 +206,7 @@ end)
 --//========================
 getgenv().MacroEngine.run = function(file)
     if not file or not file.Steps then return end
+
     notify("[ENGINE] RUNNING", Color3.fromRGB(0,255,0))
     print("[ENGINE] Running:", #file.Steps, "steps")
 
