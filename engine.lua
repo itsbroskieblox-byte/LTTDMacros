@@ -20,11 +20,51 @@ local SpawnTower = Functions:WaitForChild("SpawnTower")
 local RequestTower = Functions:WaitForChild("RequestTower")
 local SellTower = Functions:WaitForChild("SellTower")
 
+local GameGui = PlayerGui:WaitForChild("GameGui")
+local TextInfo = GameGui:WaitForChild("GameController"):WaitForChild("TextInfo")
+local Folder = GameGui:WaitForChild("Texts"):WaitForChild("Folder")
+
 -- GLOBALS
 getgenv().AutoSkip = getgenv().AutoSkip or false
 getgenv().MacroRepeatInfinite = getgenv().MacroRepeatInfinite or false
 getgenv().MacroRepeatCount = getgenv().MacroRepeatCount or 1
 getgenv().MacroRunsDone = getgenv().MacroRunsDone or 0
+
+local function notify(msg, color)
+    color = color or Color3.fromRGB(255, 255, 255)
+
+    local t = TextInfo:Clone()
+    t.Parent = Folder
+    t.Text = msg
+    
+    t.Font = Enum.Font.FredokaOne
+    t.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2.5
+    stroke.Color = color
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+    stroke.Parent = t
+
+    task.spawn(function()
+        for i = 0, 1, 0.1 do
+            t.TextTransparency = 1 - i
+            stroke.Transparency = 1 - i
+            task.wait(0.02)
+        end
+    end)
+    
+    task.delay(3, function()
+        if t then
+            for i = 0, 1, 0.1 do
+                t.TextTransparency = i
+                stroke.Transparency = i
+                task.wait(0.02)
+            end
+            t:Destroy()
+        end
+    end)
+end
 
 --//========================
 -- NAME LOGIC (CORRECT)
@@ -182,7 +222,7 @@ end)
 --//========================
 getgenv().MacroEngine.run = function(file)
     if not file or not file.Steps then return end
-
+    notify("[ENGINE] RUNNING", Color3.fromRGB(0,255,0))
     print("[ENGINE] Running:", #file.Steps, "steps")
 
     for i, step in ipairs(file.Steps) do
