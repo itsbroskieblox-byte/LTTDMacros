@@ -17,6 +17,8 @@ local Functions = RS:WaitForChild("Functions")
 local Towers = workspace:WaitForChild("Towers")
 local Gold = LP:WaitForChild("Gold")
 
+local Events = RS:WaitForChild("Events")
+
 local SpawnTower = Functions:WaitForChild("SpawnTower")
 local RequestTower = Functions:WaitForChild("RequestTower")
 local SellTower = Functions:WaitForChild("SellTower")
