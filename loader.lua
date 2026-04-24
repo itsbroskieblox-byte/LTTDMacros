@@ -108,21 +108,14 @@ if game.PlaceId == LOBBY_PLACE_ID then
 
                     local root = getRoot()
                     local targetCF = CFrame.new(screen.Position + Vector3.new(0,3,0))
-
+                    local orginCF = root.CFrame
                     print("[LOADER] Attempt:", e.Name)
 
-                    for i = 1, 10 do
-                        root.CFrame = targetCF
-                    end
-
-                    local remote = Events:FindFirstChild("StartElevator")
-                    if remote then
-                        remote:FireServer(e.Name)
-                        remote:FireServer(e.Name)
-                        remote:FireServer(e.Name)
-                    end
-
-                    hold(targetCF, 0.1)
+                    root.CFrame = targetCF
+                    task.wait(0.1)
+                    Events:FindFirstChild("StartElevator")
+                    root.CFrame = originCF
+                    
                     task.wait(10)
                 end
             end
