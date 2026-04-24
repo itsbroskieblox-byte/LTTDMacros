@@ -1,6 +1,7 @@
 --//========================
--- LOADER (FINAL STABLE)
+-- LOADER (CLEAN + SAFE)
 --//========================
+
 local BASE = "https://raw.githubusercontent.com/itsbroskieblox-byte/LTTDMacros/main/"
 local LOBBY_PLACE_ID = 113704021665503
 
@@ -10,18 +11,21 @@ local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 
+-- QUEUE RESOLVE
 local queue =
     queue_on_teleport or
     (syn and syn.queue_on_teleport) or
     queueonteleport
 
-getgenv()._LOADER_QUEUED = getgenv()._LOADER_QUEUED or false
-
-pcall(function() queue(src) end)
 getgenv()._LOADER_QUEUED = false
 
-local function queueSelf(path)
-    if not queue or getgenv()._LOADER_QUEUED then return end
+local function safeQueue()
+    if not queue then
+        warn("[LOADER] No queue function")
+        return
+    end
+
+    if getgenv()._LOADER_QUEUED then return end
     getgenv()._LOADER_QUEUED = true
 
     local src = string.format([[
@@ -31,20 +35,29 @@ local function queueSelf(path)
         getgenv().MacroRunsDone = %s
         loadstring(game:HttpGet("%s"))()
     ]],
-        path,
+        getgenv().SelectedMacroPath,
         tostring(getgenv().MacroRepeatInfinite),
         tostring(getgenv().MacroRepeatCount),
         tostring(getgenv().MacroRunsDone or 0),
         BASE.."loader.lua"
     )
 
-    pcall(function() queue(src) end)
+    pcall(function()
+        queue(src)
+    end)
 end
 
+-- FAST WAIT (you referenced this)
+local function fastWait()
+    task.wait()
+end
+
+-- FETCH
 local function fetch(p)
     return game:HttpGet(BASE..p)
 end
 
+-- LOAD MACRO
 local path = getgenv().SelectedMacroPath
 if not path then
     warn("[LOADER] No macro path")
@@ -53,104 +66,83 @@ end
 
 print("[LOADER] Path:", path)
 
-local macro = loadstring(fetch(path))()
-if not macro then
+local ok, macro = pcall(function()
+    return loadstring(fetch(path))()
+end)
+
+if not ok or not macro then
     warn("[LOADER] Invalid macro")
     return
 end
 
-queueSelf(path)
-
--- LOBBY
+--========================
+-- LOBBY LOGIC (YOUR VERSION, FIXED ONLY WHERE NEEDED)
+--========================
 if game.PlaceId == LOBBY_PLACE_ID then
-    print("[LOADER] In lobby")
+    local Events = RS:WaitForChild("Events")
 
-    local lobby = workspace:WaitForChild("NewLobby", 10)
-    local elevators = lobby and lobby:WaitForChild("Elevators", 10)
-
-    if not elevators then
-        warn("[LOADER] Elevators missing")
-        return
+    local function getRoot()
+        local char = LP.Character or LP.CharacterAdded:Wait()
+        return char:WaitForChild("HumanoidRootPart")
     end
 
-    -- PRIORITY BUILD
-    local pref = {}
-    if macro.Settings and macro.Settings.Elevators then
-        for i, v in ipairs(macro.Settings.Elevators) do
-            pref[tostring(v):lower()] = i
+    local valid = {
+        Elevator13 = true,
+        Elevator14 = true,
+        Elevator15 = true,
+        Elevator16 = true
+    }
+
+    while true do
+        local lobby = workspace:FindFirstChild("NewLobby")
+
+        if lobby and lobby:FindFirstChild("Elevators") then
+            for _, e in pairs(lobby.Elevators:GetChildren()) do
+                if not valid[e.Name] then continue end
+
+                local root = getRoot()
+                local originCFrame = root.CFrame
+
+                local screen = e:FindFirstChild("Screen")
+                if not screen or not screen:IsA("BasePart") then continue end
+
+                local gui = screen:FindFirstChild("StatusGui")
+                if not gui then continue end
+
+                local title = gui:FindFirstChild("Title")
+                if not title then continue end
+
+                if title.Text == "0/5" then
+                    print("[LOADER] Entering:", e.Name)
+
+                    root.CFrame = CFrame.new(screen.Position + Vector3.new(0, 3, 0))
+
+                    local remote = Events:FindFirstChild("StartElevator")
+                    if remote then
+                        remote:FireServer(e.Name)
+                        print("[LOADER] Fired:", e.Name)
+                    else
+                        warn("[LOADER] StartElevator missing")
+                    end
+
+                    root.CFrame = originCFrame
+
+                    safeQueue()
+
+                    task.wait(5)
+                end
+            end
         end
-    end
 
-    local function getPriority(name)
-        return pref[tostring(name):lower()] or math.huge
-    end
-
-    local list = elevators:GetChildren()
-
-    table.sort(list, function(a, b)
-        return getPriority(a.Name) < getPriority(b.Name)
-    end)
-
-    -- CHARACTER SAFE LOAD
-    local char = LP.Character or LP.CharacterAdded:Wait()
-    local root = char:WaitForChild("HumanoidRootPart", 10)
-
-    if not root then
-        warn("[LOADER] Root missing")
-        return
-    end
-
-    -- TELEPORT LOOP
-    for _, e in ipairs(list) do
-        print("[LOADER] Checking:", e.Name)
-
-        local screen = e:FindFirstChild("Screen") or e:FindFirstChildWhichIsA("BasePart")
-
-        local gui = screen and (
-            screen:FindFirstChildWhichIsA("SurfaceGui") or
-            screen:FindFirstChildWhichIsA("BillboardGui")
-        )
-
-        local title = gui and gui:FindFirstChild("Title")
-
-        if title and title.Text:find("0/") then
-            print("[LOADER] Found empty:", e.Name)
-
-            local targetCF = screen.CFrame + Vector3.new(0, 3, 0)
-
-            local oldCF = char:GetPivot()
-            -- HARD TELEPORT (REPEATED)
-            for i = 1, 8 do
-                char:PivotTo(targetCF)
-                root.CFrame = targetCF
-            end
-
-            -- FIRE REMOTE
-            local remote = RS:FindFirstChild("Events") and RS.Events:FindFirstChild("StartElevator")
-
-            if remote then
-                remote:FireServer(e.Name)
-                print("[LOADER] Fired:", e.Name)
-            else
-                warn("[LOADER] StartElevator missing")
-            end
-            
-            task.wait(0.1)
-
-            -- HOLD POSITION briefly
-            for i = 1, 8 do
-                char:PivotTo(oldCF)
-                root.CFrame = oldCF
-            end
-
-            break
-        end
+        fastWait()
     end
 
     return
 end
 
--- GAME
+--========================
+-- GAME LOGIC
+--========================
 repeat task.wait() until game:IsLoaded()
 
 loadstring(fetch("engine.lua"))()
