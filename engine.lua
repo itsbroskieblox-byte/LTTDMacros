@@ -49,8 +49,9 @@ end
 
 local function upgrade(name)
     local t = get(name)
-    if t then
-        SpawnTower:InvokeServer(name,t:GetPivot(),t)
+    if t then SpawnTower:InvokeServer(name,t:GetPivot(),t)
+    else
+SpawnTower:InvokeServer(name,t:GetPivot(),Instance.new("Model"))
     end
 end
 
