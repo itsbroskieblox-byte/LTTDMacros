@@ -1,7 +1,9 @@
 --//========================
--- ENGINE (FINAL - FIXED NAMING + REPLAY + AUTOSKIP)
+-- ENGINE (FINAL STABLE)
 --//========================
 getgenv().MacroEngine = {}
+
+local BASE = "https://raw.githubusercontent.com/itsbroskieblox-byte/LTTDMacros/main/"
 
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -25,9 +27,9 @@ getgenv().MacroRepeatCount = getgenv().MacroRepeatCount or 1
 getgenv().MacroRunsDone = getgenv().MacroRunsDone or 0
 
 --//========================
--- NAME RESOLVER
+-- NAME LOGIC
 --//========================
-local function getModelName(base, level)
+local function getModel(base, level)
     if level <= 2 then
         return base
     else
@@ -35,7 +37,7 @@ local function getModelName(base, level)
     end
 end
 
-local function getPreviousModel(base, level)
+local function getPrevious(base, level)
     if level <= 2 then
         return base
     else
@@ -44,112 +46,57 @@ local function getPreviousModel(base, level)
 end
 
 --//========================
--- TRACKING
+-- HELPERS
 --//========================
-local placed = {} -- [tower] = {instances}
-
-local function track(name)
-    placed[name] = placed[name] or {}
-
-    for _ = 1, 25 do
-        for _, t in ipairs(Towers:GetChildren()) do
-            if t.Name:find(name) and not table.find(placed[name], t) then
-                table.insert(placed[name], t)
-                return t
-            end
-        end
-        task.wait(0.15)
+local function waitGold(v)
+    while Gold.Value < v do
+        task.wait()
     end
-end
-
-local function getLatest(name)
-    local list = placed[name]
-    return list and list[#list]
 end
 
 --//========================
 -- ACTIONS
 --//========================
-local function waitGold(amount)
-    while Gold.Value < amount do
-        task.wait()
-    end
-end
-
 local function place(name, cf)
-    print("[ENGINE] Place:", name)
-
-    pcall(function()
-        RequestTower:InvokeServer(name)
-    end)
-
+    RequestTower:InvokeServer(name)
     task.wait()
-
-    pcall(function()
-        SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
-    end)
-
-    return track(name)
+    SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
 end
 
 local function upgrade(name, level)
-    print("[ENGINE] Upgrade:", name, level)
+    local prev = getPrevious(name, level)
+    local new = getModel(name, level)
 
-    local prevName = getPreviousModel(name, level)
-    local newName = getModelName(name, level)
-
-    local tower = nil
-
-    -- find correct previous tower
-    for _, t in ipairs(Towers:GetChildren()) do
-        if t.Name == prevName then
-            tower = t
-            break
+    for _,t in ipairs(Towers:GetChildren()) do
+        if t.Name == prev then
+            SpawnTower:InvokeServer(new, t:GetPivot(), t)
+            return
         end
     end
-
-    if not tower then
-        warn("[ENGINE] Upgrade failed, missing:", prevName)
-        return
-    end
-
-    pcall(function()
-        SpawnTower:InvokeServer(newName, tower:GetPivot(), tower)
-    end)
 end
 
 local function sell(name, level)
-    print("[ENGINE] Sell:", name, level)
+    local target = getModel(name, level or 1)
 
-    local target = getModelName(name, level or 1)
-
-    for _, t in ipairs(Towers:GetChildren()) do
+    for _,t in ipairs(Towers:GetChildren()) do
         if t.Name == target then
-            pcall(function()
-                SellTower:InvokeServer(t)
-            end)
+            SellTower:InvokeServer(t)
         end
     end
-
-    placed[name] = {}
 end
 
 --//========================
--- STEP EXECUTION
+-- STEP
 --//========================
 local function runStep(step, file)
     local pos = file.Positions and file.Positions[step.tower]
     local cost = file.Prices and file.Prices[step.tower]
 
     if step.action == "place" then
-        if not pos or not cost then return end
-
         waitGold(cost[1])
         place(step.tower, pos[step.id or 1])
 
     elseif step.action == "upgrade" then
-        if not cost then return end
-
         waitGold(cost[step.level])
         upgrade(step.tower, step.level)
 
@@ -159,18 +106,16 @@ local function runStep(step, file)
     elseif step.action == "set" then
         if step.target == "Skip" then
             getgenv().AutoSkip = step.value
-            print("[ENGINE] AutoSkip:", step.value)
         end
     end
 end
 
 --//========================
--- AUTOSKIP LOOP (INFINITE CHECK)
+-- AUTOSKIP LOOP
 --//========================
 task.spawn(function()
     while true do
         task.wait(0.3)
-
         if getgenv().AutoSkip then
             pcall(function()
                 RS.Events.VoteSkip:FireServer()
@@ -180,7 +125,7 @@ task.spawn(function()
 end)
 
 --//========================
--- END SCREEN LOOP (REPLAY SYSTEM)
+-- END SCREEN LOOP
 --//========================
 task.spawn(function()
     local GameGui = LP.PlayerGui:WaitForChild("GameGui")
@@ -191,25 +136,17 @@ task.spawn(function()
         local endScreen = GameGui:FindFirstChild("EndScreen")
 
         if endScreen and endScreen.Visible then
-            print("[ENGINE] End detected")
-
             getgenv().MacroRunsDone += 1
 
-            local infinite = getgenv().MacroRepeatInfinite
+            local inf = getgenv().MacroRepeatInfinite
             local max = tonumber(getgenv().MacroRepeatCount) or 1
 
-            local shouldReplay = infinite or (getgenv().MacroRunsDone < max)
+            local replay = inf or (getgenv().MacroRunsDone < max)
 
             RS.Events.ExitGame:FireServer()
 
-            if shouldReplay then
-                print("[ENGINE] Replaying macro")
-
-                if queue_on_teleport then
-                    queue_on_teleport('loadstring(game:HttpGet("'..BASE..'loader.lua"))()')
-                end
-            else
-                print("[ENGINE] Finished all runs")
+            if replay and queue_on_teleport then
+                queue_on_teleport('loadstring(game:HttpGet("'..BASE..'loader.lua"))()')
             end
 
             break
@@ -223,18 +160,16 @@ end)
 getgenv().MacroEngine.run = function(file)
     if not file or not file.Steps then return end
 
-    print("[ENGINE] Running macro:", #file.Steps, "steps")
+    print("[ENGINE] Running:", #file.Steps)
 
-    for i, step in ipairs(file.Steps) do
-        local ok, err = pcall(function()
+    for _,step in ipairs(file.Steps) do
+        local ok,err = pcall(function()
             runStep(step, file)
         end)
 
         if not ok then
-            warn("[ENGINE] Step error:", err)
+            warn(err)
             break
         end
     end
-
-    print("[ENGINE] Macro complete")
 end
