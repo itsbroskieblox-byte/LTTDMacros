@@ -1,10 +1,10 @@
 return {
     Settings = {
         Elevators = {
-            "Elevator13",
-            "Elevator14",
-            "Elevator15",
-            "Elevator16"
+            ["Elevator13"] = true,
+            ["Elevator14"] = true,
+            ["Elevator15"] = true,
+            ["Elevator16"] = true
         }
     },
 
