@@ -73,16 +73,20 @@ end
 --//========================
 local function getModel(base, level)
     if level == 1 then
+        print("[GetModel] returned:"..base)
         return base
     else
+        print("[GetModel] returned:"..to string(base..(level - 1)
         return base .. (level - 1)
     end
 end
 
 local function getPrevious(base, level)
     if level <= 2 then
+        print("[GetPrevious] returned:"..base)
         return base
     else
+        print("[GetPrevious] returned:"..to string(base..(level - 1)
         return base .. (level - 1)
     end
 end
@@ -103,15 +107,17 @@ local function place(name, cf)
     RequestTower:InvokeServer(name)
     task.wait()
     SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
+    print("[Place] Placed: ".. name)
 end
 
 local function upgrade(name, level)
     local prev = getPrevious(name, level)
-    local new = getModel(name, level)
+    local new = (name..level)
 
     for _,t in ipairs(Towers:GetChildren()) do
         if t.Name == prev then
             SpawnTower:InvokeServer(new, t:GetPivot(), t)
+            print("[Upgrade] Upgraded:"..new)
             return
         end
     end
@@ -122,7 +128,8 @@ local function sell(name, level)
 
     for _,t in ipairs(Towers:GetChildren()) do
         if t.Name == target then
-            SellTower:InvokeServer(t)
+            SellTower:InvokeServer(target)
+            print("[Sell] Selled:"..target)
         end
     end
 end
