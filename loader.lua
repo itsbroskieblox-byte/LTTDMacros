@@ -60,33 +60,81 @@ queueSelf(path)
 
 -- LOBBY
 if game.PlaceId == LOBBY_PLACE_ID then
-    local lobby = workspace:WaitForChild("NewLobby")
-    local elevators = lobby:WaitForChild("Elevators")
+    print("[LOADER] In lobby")
 
+    local lobby = workspace:WaitForChild("NewLobby", 10)
+    local elevators = lobby and lobby:WaitForChild("Elevators", 10)
+
+    if not elevators then
+        warn("[LOADER] Elevators missing")
+        return
+    end
+
+    -- PRIORITY BUILD
     local pref = {}
     if macro.Settings and macro.Settings.Elevators then
-        for i,v in ipairs(macro.Settings.Elevators) do
-            pref[v] = i
+        for i, v in ipairs(macro.Settings.Elevators) do
+            pref[tostring(v):lower()] = i
         end
+    end
+
+    local function getPriority(name)
+        return pref[tostring(name):lower()] or math.huge
     end
 
     local list = elevators:GetChildren()
 
-    table.sort(list,function(a,b)
-        return (pref[a.Name] or math.huge) < (pref[b.Name] or math.huge)
+    table.sort(list, function(a, b)
+        return getPriority(a.Name) < getPriority(b.Name)
     end)
 
+    -- CHARACTER SAFE LOAD
     local char = LP.Character or LP.CharacterAdded:Wait()
-    local root = char:WaitForChild("HumanoidRootPart")
+    local root = char:WaitForChild("HumanoidRootPart", 10)
 
-    for _,e in ipairs(list) do
-        local screen = e:FindFirstChild("Screen")
-        local gui = screen and screen:FindFirstChildWhichIsA("SurfaceGui")
+    if not root then
+        warn("[LOADER] Root missing")
+        return
+    end
+
+    -- TELEPORT LOOP
+    for _, e in ipairs(list) do
+        print("[LOADER] Checking:", e.Name)
+
+        local screen = e:FindFirstChild("Screen") or e:FindFirstChildWhichIsA("BasePart")
+
+        local gui = screen and (
+            screen:FindFirstChildWhichIsA("SurfaceGui") or
+            screen:FindFirstChildWhichIsA("BillboardGui")
+        )
+
         local title = gui and gui:FindFirstChild("Title")
 
         if title and title.Text:find("0/") then
-            root.CFrame = CFrame.new(screen.Position + Vector3.new(0,3,0))
-            RS.Events.StartElevator:FireServer(e.Name)
+            print("[LOADER] Found empty:", e.Name)
+
+            local targetCF = screen.CFrame + Vector3.new(0, 3, 0)
+
+            -- HARD TELEPORT (REPEATED)
+            for i = 1, 8 do
+                char:PivotTo(targetCF)
+                root.CFrame = targetCF
+                task.wait(0.1)
+            end
+
+            -- FIRE REMOTE
+            local remote = RS:FindFirstChild("Events") and RS.Events:FindFirstChild("StartElevator")
+
+            if remote then
+                remote:FireServer(e.Name)
+                print("[LOADER] Fired:", e.Name)
+            else
+                warn("[LOADER] StartElevator missing")
+            end
+
+            -- HOLD POSITION briefly
+            task.wait(2)
+
             break
         end
     end
