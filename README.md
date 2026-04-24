@@ -1,2 +1,2 @@
 # LTTDMacros
-Macros for legacy toilet tower defense 
+Macro Automation for Roblox LTTD(Legacy Toilet Tower Defense)
