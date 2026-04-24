@@ -17,6 +17,9 @@ local queue =
 
 getgenv()._LOADER_QUEUED = getgenv()._LOADER_QUEUED or false
 
+pcall(function() queue(src) end)
+getgenv()._LOADER_QUEUED = false
+
 local function queueSelf(path)
     if not queue or getgenv()._LOADER_QUEUED then return end
     getgenv()._LOADER_QUEUED = true
