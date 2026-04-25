@@ -129,7 +129,9 @@ local function runStep(step, file)
     local cost = file.Prices and file.Prices[step.tower]
     
     if step.action == "fullPlace" then
-        for id = 1, step.count do
+        local count = 0
+        if not step.count then count = 1 else count = step.count end 
+        for id = 1, count do
             for index = 1, #cost do
                 waitGold(cost[index])
                 if index == 1 then
