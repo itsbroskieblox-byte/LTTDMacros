@@ -59,7 +59,7 @@ end
 
 local function deb(msg)
     if not Debug then return end
-    color = Color3.fromRGB(255,255,255)
+    local color = Color3.fromRGB(255,255,255)
 
     local t = TextInfo:Clone()
     t.Parent = Folder
