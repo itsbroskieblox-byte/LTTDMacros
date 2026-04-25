@@ -113,49 +113,53 @@ local function checktower(name)
 end
 
 local function place(name, cf)
-    while true do
-        print("[Place] Request:", name)
-        RequestTower:InvokeServer(name)
-        task.wait()
-        SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
-        deb("Placed : "..name)
-        print("[Place] Placed:", name)
-        task.wait(0.1)
-        return checktower(name)
-    end
+    print("[Place] Request:", name)
+    RequestTower:InvokeServer(name)
+    task.wait()
+    SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
+
+    deb("Placed : "..name)
+    print("[Place] Placed:", name)
+
+    return checktower(name)
 end
 
 local function upgrade(name, level)
+    local prev = getPrevious(name, level)
+    local new = getModel(name, level)
+
     while true do
-        local prev = getPrevious(name, level)
-        local new = getModel(name, level)
-        print("[Upgrade] Trying:", prev, "->", new)
-        for _,t in ipairs(Towers:GetChildren()) do
+        for _, t in ipairs(Towers:GetChildren()) do
             if t.Name == prev then
                 SpawnTower:InvokeServer(new, t:GetPivot(), t)
-                print("[Upgrade] Success:", new)
                 deb("Upgraded : "..new)
-                return
+                print("[Upgrade] Success:", new)
+
+                return checktower(new) -- wait for result
             end
         end
         task.wait(0.1)
-        return checktower(new)
     end
 end
 
 local function sell(name, level)
+    local target = name .. level
+
     while true do
-        local target = (name..level)
-        print("[Sell] Looking for:".. target)
-        for _,t in ipairs(Towers:GetChildren()) do
+        for _, t in ipairs(Towers:GetChildren()) do
             if t.Name == target then
                 SellTower:InvokeServer(t)
                 deb("Selled : "..t.Name)
                 print("[Sell] Sold:", t.Name)
+
+                -- wait until it's gone
+                repeat task.wait(0.1)
+                until not Towers:FindFirstChild(target)
+
+                return true
             end
         end
         task.wait(0.1)
-        return checktower(target)
     end
 end
 
@@ -224,9 +228,7 @@ local function runStep(step, file)
 
     elseif step.action == "set" then
         if step.target == "Skip" then
-            while not waitCondition(step.condition) do
-                task.wait()
-            end
+            waitCondition(step.condition)
             
             getgenv().AutoSkip = step.value
             print("[SET] AutoSkip:", step.value)
