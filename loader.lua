@@ -49,20 +49,21 @@ end
 
 local function fetch(p)
     local retries = 10
-    local count = 0
     
-    while not retries > count do
-        count += 1
+    for i = 1, retries do
         local ok, result = pcall(function()
-            return game:HttpGet(BASE..p)
-        end
-        
+            return game:HttpGet(BASE .. p)
+        end)
+
         if ok and result and #result > 0 then
             return result
         end
-        
-        task.wait(0.1)
+
+        warn("[FETCH] Failed attempt:", i, p)
+        task.wait(0.2)
     end
+
+    warn("[FETCH] Completely failed:", p)
     return nil
 end
 
@@ -149,7 +150,19 @@ repeat task.wait() until game:IsLoaded()
 
 print("[LOADER] Loading engine")
 
-loadstring(fetch("engine.lua"))()
+local engineSrc = fetch("engine.lua")
+if not engineSrc then
+    warn("[LOADER] Failed to fetch engine")
+    return
+end
+
+local fn, err = loadstring(engineSrc)
+if not fn then
+    warn("[LOADER] Engine compile error:", err)
+    return
+end
+
+fn()
 
 if getgenv().MacroEngine then
     print("[LOADER] Running macro")
