@@ -48,7 +48,22 @@ local function safeQueue()
 end
 
 local function fetch(p)
-    return game:HttpGet(BASE..p)
+    local retries = 10
+    local count = 0
+    
+    while not retries > count do
+        count += 1
+        local ok, result = pcall(function()
+            return game:HttpGet(BASE..p)
+        end
+        
+        if ok and result and #result > 0 then
+            return result
+        end
+        
+        task.wait(0.1)
+    end
+    return nil
 end
 
 -- LOAD MACRO
