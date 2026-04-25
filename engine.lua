@@ -55,10 +55,16 @@ end
 --//========================
 -- NAME LOGIC
 --//========================
+-- Returns the model name for the current level.
+-- If level is 1, it just returns the base name (e.g., "Tower").
+-- Otherwise, it appends the level number (e.g., "Tower2", "Tower3", etc.).
 local function getModel(base, level)
     return (level == 1) and base or (base .. level)
 end
 
+-- Returns the model name for the previous level.
+-- If level is 1 or 2, it returns the base name (since there is no lower variant).
+-- Otherwise, it appends (level - 1) to get the previous version (e.g., "Tower2" for level 3).
 local function getPrevious(base, level)
     return (level <= 2) and base or (base .. (level - 1))
 end
@@ -129,7 +135,7 @@ local function runStep(step, file)
                 if index == 1 then
                     place(step.tower, pos[step.id or 1])
                 else
-                    upgrade(step.tower, id)
+                    upgrade(step.tower, index)
                 end
             end
         end
