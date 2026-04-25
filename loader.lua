@@ -13,9 +13,8 @@ local LP = Players.LocalPlayer
 
 -- QUEUE RESOLVE
 local queue =
-    queue_on_teleport or
-    (syn and syn.queue_on_teleport) or
-    queueonteleport
+    (type(queue_on_teleport) == "function" and queue_on_teleport)
+    or (syn and type(syn.queue_on_teleport) == "function" and syn.queue_on_teleport)
 
 getgenv()._LOADER_QUEUED = getgenv()._LOADER_QUEUED or false
 
