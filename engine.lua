@@ -133,15 +133,23 @@ local function upgrade(name, level)
 end
 
 local function sell(name, level)
-    local target = (name..level)
+    print(name..level)
+    if type(name) ~= "string" or type(level) ~= "number" then
+        warn("[Sell] Invalid args:", name, level)
+        return
+    end
 
-    print("[Sell] Looking for:".. target)
+    local target = name .. level
+    print("[Sell] Looking for:", target)
 
-    for _,t in ipairs(Towers:GetChildren()) do
+    for _, t in ipairs(Towers:GetChildren()) do
         if t.Name == target then
-            SellTower:InvokeServer(t)
-            deb("Selled : "..t.Name)
-            print("[Sell] Sold:", t.Name)
+            if SellTower then
+                SellTower:InvokeServer(t)
+                print("[Sell] Sold:", t.Name)
+            else
+                warn("[Sell] SellTower is nil")
+            end
         end
     end
 end
