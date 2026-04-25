@@ -135,31 +135,45 @@ end
 local function sell(name, level)
     local target = (name..level)
 
-    print("[Sell] Looking for:", target)
+    print("[Sell] Looking for:".. target)
 
     for _,t in ipairs(Towers:GetChildren()) do
         if t.Name == target then
             SellTower:InvokeServer(t)
-            deb("Selled : "..t)
-            print("[Sell] Sold:", t)
+            deb("Selled : "..t.Name)
+            print("[Sell] Sold:", t.Name)
         end
     end
 end
 
 local function waitCondition(cond)
-    if not cond then return end
+    if not cond then return true end -- no condition = continue immediately
+
     if cond.type == "wave" then
         while true do
-            local current = Wave.Value
-            if current and current >= cond.value then
+            local current = Wave and Wave.Value
+            if current and current >= (cond.value or 0) then
                 break
             end
             task.wait(0.1)
         end
-        
-        deb("Condition Met: "..cond.type.." "..cond.value)
-        return true
+
+    elseif cond.type == "time" then
+        local t = tonumber(cond.value) or 0
+        task.wait(t)
+
+    elseif cond.type == "gold" then
+        local amount = tonumber(cond.value) or 0
+        while Gold.Value < amount do
+            task.wait(0.1)
+        end
+
+    else
+        warn("[Condition] Unknown type:", cond.type)
     end
+
+    deb("Condition Met: ".. tostring(cond.type) .. " " .. tostring(cond.value))
+    return true
 end
 
 --//========================
