@@ -113,54 +113,42 @@ local function checktower(name)
 end
 
 local function place(name, cf)
-    print("[Place] Request:", name)
-    RequestTower:InvokeServer(name)
-    task.wait()
-    SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
-
-    deb("Placed : "..name)
-    print("[Place] Placed:", name)
-
-    return checktower(name)
+    repeat
+        RequestTower:InvokeServer(name)
+        task.wait()
+        SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
+        task.wait(0.1)
+    until checktower(name)
+    return true
 end
 
 local function upgrade(name, level)
     local prev = getPrevious(name, level)
     local new = getModel(name, level)
-
-    while true do
+    
+    repeat
         for _, t in ipairs(Towers:GetChildren()) do
             if t.Name == prev then
                 SpawnTower:InvokeServer(new, t:GetPivot(), t)
-                deb("Upgraded : "..new)
-                print("[Upgrade] Success:", new)
-
-                return checktower(new) -- wait for result
             end
         end
         task.wait(0.1)
-    end
+    until checktower(new)
+    return true
 end
 
 local function sell(name, level)
     local target = name .. level
 
-    while true do
+    repeat
         for _, t in ipairs(Towers:GetChildren()) do
             if t.Name == target then
                 SellTower:InvokeServer(t)
-                deb("Selled : "..t.Name)
-                print("[Sell] Sold:", t.Name)
-
-                -- wait until it's gone
-                repeat task.wait(0.1)
-                until not Towers:FindFirstChild(target)
-
-                return true
             end
         end
         task.wait(0.1)
-    end
+    until not Towers:FindFirstChild(target)
+    return true
 end
 
 local function waitCondition(cond)
@@ -205,8 +193,6 @@ local function runStep(step, file)
     if step.action == "fullPlace" then
         local count = step.count or 1
         for i = 1, count do
-            print("[FullPlace] Tower:", step.tower, "Cycle:", i)
-            
             waitGold(cost[1])
             place(step.tower, pos[step.id or i])
             
