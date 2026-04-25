@@ -194,7 +194,7 @@ local function runStep(step, file)
         local count = step.count or 1
         for i = 1, count do
             waitGold(cost[1])
-            place(step.tower, pos[step.id or i])
+            place(step.tower, pos[step.id or 1])
             
             for level = 2, #cost do
                 waitGold(cost[level])
