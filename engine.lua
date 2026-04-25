@@ -83,7 +83,6 @@ end
 -- Otherwise, it appends the level number (e.g., "Tower2", "Tower3", etc.).
 local function getModel(base, level)
     return (level == 1) and base or (base .. level)
-    deb()
 end
 
 -- Returns the model name for the previous level.
