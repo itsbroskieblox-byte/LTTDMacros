@@ -26,6 +26,11 @@ local GameGui = PlayerGui:WaitForChild("GameGui")
 local TextInfo = GameGui:WaitForChild("GameController"):WaitForChild("TextInfo")
 local Folder = GameGui:WaitForChild("Texts"):WaitForChild("Folder")
 
+local InfoFolder = workspace:WaitForChild("Info")
+local Wave = InfoFolder:WaitForChild("Wave")
+
+local Debug = false
+
 -- GLOBALS
 getgenv().AutoSkip = getgenv().AutoSkip or false
 getgenv().MacroRepeatInfinite = getgenv().MacroRepeatInfinite or false
@@ -52,6 +57,24 @@ local function notify(msg, color)
     end)
 end
 
+local function deb(msg)
+    if not Debug then return end
+    color = Color3.fromRGB(255,255,255)
+
+    local t = TextInfo:Clone()
+    t.Parent = Folder
+    t.Text = msg
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = color
+    stroke.Parent = t
+
+    task.delay(3,function()
+        if t then t:Destroy() end
+    end)
+end
+
 --//========================
 -- NAME LOGIC
 --//========================
@@ -60,6 +83,7 @@ end
 -- Otherwise, it appends the level number (e.g., "Tower2", "Tower3", etc.).
 local function getModel(base, level)
     return (level == 1) and base or (base .. level)
+    deb()
 end
 
 -- Returns the model name for the previous level.
@@ -86,6 +110,7 @@ local function place(name, cf)
     RequestTower:InvokeServer(name)
     task.wait()
     SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
+    deb("Placed : "..name)
     print("[Place] Placed:", name)
 end
 
@@ -99,6 +124,7 @@ local function upgrade(name, level)
         if t.Name == prev then
             SpawnTower:InvokeServer(new, t:GetPivot(), t)
             print("[Upgrade] Success:", new)
+            deb("Upgraded : "..new)
             return
         end
     end
@@ -114,8 +140,25 @@ local function sell(name, level)
     for _,t in ipairs(Towers:GetChildren()) do
         if t.Name == target then
             SellTower:InvokeServer(t)
-            print("[Sell] Sold:", target)
+            deb("Selled : "..t)
+            print("[Sell] Sold:", t)
         end
+    end
+end
+
+local function waitCondition(cond)
+    if not cond then return end
+    if cond.type == "wave" then
+        while true do
+            local current = Wave.Value
+            if current and current >= cond.value then
+                break
+            end
+            task.wait(0.1)
+        end
+        
+        deb("Condition Met: "..cond.type.." "..cond.value)
+        return true
     end
 end
 
@@ -154,6 +197,10 @@ local function runStep(step, file)
 
     elseif step.action == "set" then
         if step.target == "Skip" then
+            while not waitCondition(step.condition) do
+                task.wait()
+            end
+            
             getgenv().AutoSkip = step.value
             print("[SET] AutoSkip:", step.value)
         end
@@ -212,7 +259,7 @@ end)
 getgenv().MacroEngine.run = function(file)
     if not file or not file.Steps then return end
 
-    notify("[ENGINE] RUNNING", Color3.fromRGB(0,255,0))
+    notify("Macro Started", Color3.fromRGB(0,255,0))
     print("[ENGINE] Running:", #file.Steps, "steps")
 
     for i, step in ipairs(file.Steps) do
@@ -221,10 +268,12 @@ getgenv().MacroEngine.run = function(file)
         end)
 
         if not ok then
+            notify(err, Color3.fromRGB(255,255,0))
             warn("[ENGINE ERROR]", err)
             break
         end
     end
-
+    
+    notify("Macro Finished", Color3.fromRGB(255,255,0))
     print("[ENGINE] Done")
 end
