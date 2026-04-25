@@ -113,7 +113,9 @@ if game.PlaceId == LOBBY_PLACE_ID then
 
                     root.CFrame = targetCF
                     task.wait(0.1)
-                    Events:FindFirstChild("StartElevator")
+                    if root.CFrame == targetCF then
+                        Events:FindFirstChild("StartElevator")
+                    end
                     root.CFrame = originCF
                     
                     task.wait(10)
