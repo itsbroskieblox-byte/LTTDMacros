@@ -113,8 +113,9 @@ if game.PlaceId == LOBBY_PLACE_ID then
 
                     root.CFrame = targetCF
                     task.wait(0.15)
-                    Events:FindFirstChild("StartElevator")
-                    root.CFrame = orginCF
+                    Events:FindFirstChild("StartElevator"):FireServer(e.Name)
+                    local newRoot = getRoot()
+                    newRoot.CFrame = orginCF
                     
                     task.wait(10)
                 end
