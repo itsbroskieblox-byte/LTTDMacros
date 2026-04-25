@@ -34,13 +34,11 @@ return {
         {action="upgrade", tower="Upgraded Speakerwoman", level=3},
         {action="upgrade", tower="Upgraded Speakerwoman", level=4},
 
-        {action="fullPlace", tower="Mech Cameraman"},
+        {action="fullPlace", tower="Mech Cameraman", count=9},
         
         {action="fullPlace", tower="Upgraded Titan Cameraman"},
         
         {action = "set", target = "Skip", value = true, condition = {type = "wave", value = 25}},
-        
-        {action="fullPlace", tower="Mech Cameraman", count=8},
       
         {action="sell", tower="Upgraded Speakerwoman", level=3},
 
