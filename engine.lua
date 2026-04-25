@@ -59,7 +59,7 @@ end
 
 local function deb(msg)
     if not Debug then return end
-    local color = Color3.fromRGB(255,255,255)
+    color = Color3.fromRGB(255,255,255)
 
     local t = TextInfo:Clone()
     t.Parent = Folder
@@ -104,52 +104,58 @@ end
 --//========================
 -- ACTIONS
 --//========================
+local function checktower(name)
+    while true do
+        local tower = Towers:FindFirstChild(name)
+        if tower then return true end
+        task.wait(0.1)
+    end
+end
+
 local function place(name, cf)
-    print("[Place] Request:", name)
-    RequestTower:InvokeServer(name)
-    task.wait()
-    SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
-    deb("Placed : "..name)
-    print("[Place] Placed:", name)
+    while true do
+        print("[Place] Request:", name)
+        RequestTower:InvokeServer(name)
+        task.wait()
+        SpawnTower:InvokeServer(name, cf, Instance.new("Model"))
+        deb("Placed : "..name)
+        print("[Place] Placed:", name)
+        task.wait(0.1)
+        return checktower(name)
+    end
 end
 
 local function upgrade(name, level)
-    local prev = getPrevious(name, level)
-    local new = getModel(name, level)
-
-    print("[Upgrade] Trying:", prev, "->", new)
-
-    for _,t in ipairs(Towers:GetChildren()) do
-        if t.Name == prev then
-            SpawnTower:InvokeServer(new, t:GetPivot(), t)
-            print("[Upgrade] Success:", new)
-            deb("Upgraded : "..new)
-            return
+    while true do
+        local prev = getPrevious(name, level)
+        local new = getModel(name, level)
+        print("[Upgrade] Trying:", prev, "->", new)
+        for _,t in ipairs(Towers:GetChildren()) do
+            if t.Name == prev then
+                SpawnTower:InvokeServer(new, t:GetPivot(), t)
+                print("[Upgrade] Success:", new)
+                deb("Upgraded : "..new)
+                return
+            end
         end
+        task.wait(0.1)
+        return checktower(new)
     end
-
-    warn("[Upgrade] Failed:", prev)
 end
 
 local function sell(name, level)
-    print(name..level)
-    if type(name) ~= "string" or type(level) ~= "number" then
-        warn("[Sell] Invalid args:", name, level)
-        return
-    end
-
-    local target = name .. level
-    print("[Sell] Looking for:", target)
-
-    for _, t in ipairs(Towers:GetChildren()) do
-        if t.Name == target then
-            if SellTower then
+    while true do
+        local target = (name..level)
+        print("[Sell] Looking for:".. target)
+        for _,t in ipairs(Towers:GetChildren()) do
+            if t.Name == target then
                 SellTower:InvokeServer(t)
+                deb("Selled : "..t.Name)
                 print("[Sell] Sold:", t.Name)
-            else
-                warn("[Sell] SellTower is nil")
             end
         end
+        task.wait(0.1)
+        return checktower(target)
     end
 end
 
@@ -193,16 +199,16 @@ local function runStep(step, file)
     local cost = file.Prices and file.Prices[step.tower]
     
     if step.action == "fullPlace" then
-        local count = 0
-        if not step.count then count = 1 else count = step.count end 
-        for id = 1, count do
-            for index = 1, #cost do
-                waitGold(cost[index])
-                if index == 1 then
-                    place(step.tower, pos[step.id or 1])
-                else
-                    upgrade(step.tower, index)
-                end
+        local count = step.count or 1
+        for i = 1, count do
+            print("[FullPlace] Tower:", step.tower, "Cycle:", i)
+            
+            waitGold(cost[1])
+            place(step.tower, pos[step.id or i])
+            
+            for level = 2, #cost do
+                waitGold(cost[level])
+                upgrade(step.tower, level)
             end
         end
     elseif step.action == "place" then
